@@ -51,18 +51,21 @@ jobs:
           export CXX=aarch64-linux-gnu-g++
         fi
         cargo build --release --target ${{ matrix.target }}
+      shell: bash
 
     - name: Create release directory
       run: mkdir -p release-artifacts
+      shell: bash
 
     - name: Copy library (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        mkdir "addons\gdserial\bin\windows"
-        copy "target\${{ matrix.target }}\release\${{ matrix.lib_name }}" "addons\gdserial\bin\windows\${{ matrix.lib_name }}"
-        xcopy "addons" "release-artifacts\addons" /E /I
-        copy "LICENSE" "release-artifacts\"
-        copy "README.md" "release-artifacts\"
+        mkdir -p addons/gdserial/bin/windows
+        cp target/${{ matrix.target }}/release/${{ matrix.lib_name }} addons/gdserial/bin/windows/${{ matrix.lib_name }}
+        cp -r addons release-artifacts/
+        cp LICENSE release-artifacts/
+        cp README.md release-artifacts/
+      shell: bash
 
     - name: Copy library (Unix)
       if: matrix.os != 'windows-latest'
@@ -77,6 +80,7 @@ jobs:
         cp -r addons release-artifacts/
         cp LICENSE release-artifacts/
         cp README.md release-artifacts/
+      shell: bash
 
     - name: Create archive
       run: |
