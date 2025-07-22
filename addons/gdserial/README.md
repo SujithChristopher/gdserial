@@ -1,6 +1,10 @@
 # GdSerial - Serial Communication for Godot
 
+<img src="icon.png" alt="GdSerial Icon" width="64" height="64" align="left" style="margin-right: 20px;">
+
 A Rust-based serial communication library for Godot 4 that provides PySerial-like functionality.
+
+<br clear="left">
 
 ## Installation
 
