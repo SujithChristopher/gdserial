@@ -1,2 +1,35 @@
-/target
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo files
+Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Claude Code files
+.claude/
 .claude
+**/.claude
+
+# Godot extension files (generated)
+*.dll
+*.so
+*.dylib
+*.tmp
+*.gdextension
+CLAUDE.md
