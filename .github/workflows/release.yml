@@ -35,6 +35,9 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libudev-dev
+        if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+        fi
 
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -42,7 +45,12 @@ jobs:
         target: ${{ matrix.target }}
 
     - name: Build release
-      run: cargo build --release --target ${{ matrix.target }}
+      run: |
+        if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+          export CC=aarch64-linux-gnu-gcc
+          export CXX=aarch64-linux-gnu-g++
+        fi
+        cargo build --release --target ${{ matrix.target }}
 
     - name: Create release directory
       run: mkdir -p release-artifacts
@@ -50,6 +58,7 @@ jobs:
     - name: Copy library (Windows)
       if: matrix.os == 'windows-latest'
       run: |
+        mkdir "addons\gdserial\bin\windows"
         copy "target\${{ matrix.target }}\release\${{ matrix.lib_name }}" "addons\gdserial\bin\windows\${{ matrix.lib_name }}"
         xcopy "addons" "release-artifacts\addons" /E /I
         copy "LICENSE" "release-artifacts\"
