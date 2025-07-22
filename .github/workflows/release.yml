@@ -19,9 +19,6 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             lib_name: libgdserial.so
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            lib_name: libgdserial.so
           - os: macos-latest
             target: x86_64-apple-darwin
             lib_name: libgdserial.dylib
@@ -35,12 +32,6 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libudev-dev
-        if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-          sudo apt-get install -y gcc-aarch64-linux-gnu libudev-dev:arm64
-          sudo dpkg --add-architecture arm64
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev:arm64
-        fi
 
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -48,15 +39,7 @@ jobs:
         target: ${{ matrix.target }}
 
     - name: Build release
-      run: |
-        if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-          export CC=aarch64-linux-gnu-gcc
-          export CXX=aarch64-linux-gnu-g++
-          export PKG_CONFIG_ALLOW_CROSS=1
-          export PKG_CONFIG_PATH="/usr/lib/aarch64-linux-gnu/pkgconfig"
-          export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=/usr/aarch64-linux-gnu"
-        fi
-        cargo build --release --target ${{ matrix.target }}
+      run: cargo build --release --target ${{ matrix.target }}
       shell: bash
 
     - name: Create release directory
@@ -76,13 +59,8 @@ jobs:
     - name: Copy library (Unix)
       if: matrix.os != 'windows-latest'
       run: |
-        if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-          mkdir -p addons/gdserial/bin/linux-arm64
-          cp target/${{ matrix.target }}/release/${{ matrix.lib_name }} addons/gdserial/bin/linux-arm64/${{ matrix.lib_name }}
-        else
-          mkdir -p addons/gdserial/bin/${{ matrix.os == 'macos-latest' && 'macos' || 'linux' }}
-          cp target/${{ matrix.target }}/release/${{ matrix.lib_name }} addons/gdserial/bin/${{ matrix.os == 'macos-latest' && 'macos' || 'linux' }}/${{ matrix.lib_name }}
-        fi
+        mkdir -p addons/gdserial/bin/${{ matrix.os == 'macos-latest' && 'macos' || 'linux' }}
+        cp target/${{ matrix.target }}/release/${{ matrix.lib_name }} addons/gdserial/bin/${{ matrix.os == 'macos-latest' && 'macos' || 'linux' }}/${{ matrix.lib_name }}
         cp -r addons release-artifacts/
         cp LICENSE release-artifacts/
         cp README.md release-artifacts/
