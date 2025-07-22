@@ -13,14 +13,28 @@ A Rust-based serial communication library for Godot 4, providing PySerial-like f
 
 ## Installation
 
-### Prerequisites
+### Option 1: Godot Asset Library (Recommended)
 
+1. Open your Godot project
+2. Go to Project > Project Settings > Plugins
+3. Search for "GdSerial" in the Asset Library
+4. Install and enable the plugin
+
+### Option 2: Manual Installation
+
+1. Download the latest release from GitHub
+2. Extract the `addons/gdserial` folder to your project's `addons/` directory
+3. Go to Project > Project Settings > Plugins
+4. Enable the "GdSerial - Serial Communication Library" plugin
+
+### Option 3: Build from Source
+
+#### Prerequisites
 - Rust (latest stable version)
-- Godot 4.x
+- Godot 4.2+
 - Git
 
-### Building the Extension
-
+#### Building Steps
 1. Clone this repository:
 ```bash
 git clone <your-repo-url>
@@ -29,15 +43,14 @@ cd gdserial
 
 2. Build the library:
 ```bash
-cargo build --release
+# Linux/Mac
+./build_release.sh
+
+# Windows
+build_release.bat
 ```
 
-3. The compiled library will be in `target/release/`:
-   - Windows: `gdserial.dll`
-   - Linux: `libgdserial.so`
-   - macOS: `libgdserial.dylib`
-
-4. Copy the library to your Godot project's extension directory and create the necessary `.gdextension` file.
+3. The plugin will be ready in the `addons/gdserial` folder with compiled libraries for all platforms.
 
 ## API Reference
 
@@ -64,7 +77,9 @@ cargo build --release
 - `bytes_available() -> int` - Get number of bytes waiting to be read
 - `clear_buffer() -> bool` - Clear input/output buffers
 
-## Usage Example
+## Quick Start
+
+After installing the plugin, you can use GdSerial in any script:
 
 ```gdscript
 extends Node
@@ -103,6 +118,8 @@ func _ready():
     else:
         print("Failed to open port")
 ```
+
+> **Note**: The GdSerial class becomes available automatically once the plugin is enabled. No imports needed!
 
 ## Common Use Cases
 
@@ -173,12 +190,42 @@ sudo usermod -a -G dialout $USER
 - Clear cargo cache: `cargo clean`
 - Check that all dependencies are available
 
+## Publishing and Distribution
+
+### For Developers
+
+To build and distribute this plugin:
+
+1. **Build for release**:
+```bash
+./build_release.sh    # Linux/Mac
+build_release.bat     # Windows
+```
+
+2. **Test locally**: Copy `addons/gdserial` to a test project and verify functionality
+
+3. **Create release**: Package the `addons` folder for distribution
+
+### Plugin Structure
+
+```
+addons/gdserial/
+├── plugin.cfg              # Plugin configuration
+├── plugin.gd               # Plugin activation script
+├── gdserial.gdextension    # Extension loader
+├── bin/                    # Compiled libraries
+│   ├── gdserial.dll       # Windows
+│   ├── libgdserial.so     # Linux
+│   └── libgdserial.dylib  # macOS
+└── README.md              # Plugin documentation
+```
+
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
+4. Test with the build scripts
 5. Submit a pull request
 
 ## License
@@ -198,3 +245,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Port enumeration and management
 - String and binary I/O operations
 - Cross-platform support
+- Godot Asset Library ready plugin structure
