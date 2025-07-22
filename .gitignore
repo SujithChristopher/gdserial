@@ -27,10 +27,10 @@ Thumbs.db
 **/.claude
 
 # Godot extension files (generated binaries)
-*.dll
-*.so
-*.dylib
-*.tmp
+# *.dll
+# *.so
+# *.dylib
+# *.tmp
 CLAUDE.md
 
 
