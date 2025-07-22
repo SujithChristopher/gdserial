@@ -15,23 +15,25 @@ A Rust-based serial communication library for Godot 4, providing PySerial-like f
 - **Comprehensive I/O**: Support for both binary and text operations
 - **Line-based Communication**: Built-in readline/writeline functionality
 
+## Platform Support
+
+| Platform | Architecture | Status | Port Examples |
+|----------|--------------|--------|---------------|
+| **Windows** | x64 | ✅ Supported | `COM1`, `COM3`, `COM8` |
+| **Linux** | x64 | ✅ Supported | `/dev/ttyUSB0`, `/dev/ttyACM0` |
+| **Linux** | ARM64 | 📋 Planned | `/dev/ttyUSB0`, `/dev/ttyACM0` |
+| **macOS** | x64 | ✅ Supported | `/dev/tty.usbserial-*`, `/dev/tty.usbmodem*` |
+
 ## Installation
 
-### Option 1: Godot Asset Library (Recommended)
+### Option 1: GitHub Releases (Recommended)
 
-1. Open your Godot project
-2. Go to Project > Project Settings > Plugins
-3. Search for "GdSerial" in the Asset Library
-4. Install and enable the plugin
-
-### Option 2: Manual Installation
-
-1. Download the latest release from GitHub
+1. Download the latest release for your platform from [GitHub Releases](https://github.com/SujithChristopher/gdserial/releases)
 2. Extract the `addons/gdserial` folder to your project's `addons/` directory
 3. Go to Project > Project Settings > Plugins
 4. Enable the "GdSerial - Serial Communication Library" plugin
 
-### Option 3: Build from Source
+### Option 2: Build from Source
 
 #### Prerequisites
 - Rust (latest stable version)
@@ -41,7 +43,7 @@ A Rust-based serial communication library for Godot 4, providing PySerial-like f
 #### Building Steps
 1. Clone this repository:
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/SujithChristopher/gdserial.git
 cd gdserial
 ```
 
@@ -54,7 +56,7 @@ cd gdserial
 build_release.bat
 ```
 
-3. The plugin will be ready in the `addons/gdserial` folder with compiled libraries for all platforms.
+3. The plugin will be ready in the `addons/gdserial` folder with compiled libraries.
 
 ## API Reference
 
@@ -194,23 +196,7 @@ sudo usermod -a -G dialout $USER
 - Clear cargo cache: `cargo clean`
 - Check that all dependencies are available
 
-## Publishing and Distribution
-
-### For Developers
-
-To build and distribute this plugin:
-
-1. **Build for release**:
-```bash
-./build_release.sh    # Linux/Mac
-build_release.bat     # Windows
-```
-
-2. **Test locally**: Copy `addons/gdserial` to a test project and verify functionality
-
-3. **Create release**: Package the `addons` folder for distribution
-
-### Plugin Structure
+## Plugin Structure
 
 ```
 addons/gdserial/
@@ -218,9 +204,12 @@ addons/gdserial/
 ├── plugin.gd               # Plugin activation script
 ├── gdserial.gdextension    # Extension loader
 ├── bin/                    # Compiled libraries
-│   ├── gdserial.dll       # Windows
-│   ├── libgdserial.so     # Linux
-│   └── libgdserial.dylib  # macOS
+│   ├── windows/            
+│   │   └── gdserial.dll    # Windows x64
+│   ├── linux/              
+│   │   └── libgdserial.so  # Linux x64
+│   └── macos/              
+│       └── libgdserial.dylib # macOS x64
 └── README.md              # Plugin documentation
 ```
 
@@ -240,13 +229,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [gdext](https://github.com/godot-rust/gdext) - Godot 4 Rust bindings
 - [serialport](https://crates.io/crates/serialport) - Cross-platform serial port library
-
-## Changelog
-
-### v0.1.0
-- Initial release
-- Basic serial communication functionality
-- Port enumeration and management
-- String and binary I/O operations
-- Cross-platform support
-- Godot Asset Library ready plugin structure
