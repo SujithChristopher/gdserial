@@ -1,19 +1,21 @@
-# GdSerial
+# GdSerial - Serial Communication Library for Godot 4
 
 <img src="addons/gdserial/icon.png" alt="GdSerial Icon" width="64" height="64" align="left" style="margin-right: 20px;">
 
-A Rust-based serial communication library for Godot 4, providing PySerial-like functionality through gdext. This library allows you to easily communicate with serial devices (Arduino, sensors, etc.) directly from your Godot projects.
+A high-performance Rust-based serial communication library for Godot 4 game engine, providing PySerial-like functionality through gdext. Enable direct hardware communication with Arduino, ESP32, sensors, modems, and IoT devices in your Godot games and applications.
 
 <br clear="left">
 
 ## Features
 
-- **Port Discovery**: Enumerate and identify available COM ports
-- **Cross-platform**: Works on Windows, Linux, and macOS
-- **PySerial-like API**: Familiar interface for Python developers
-- **Godot Integration**: Native Godot types and error handling
-- **Comprehensive I/O**: Support for both binary and text operations
-- **Line-based Communication**: Built-in readline/writeline functionality
+- **Arduino & ESP32 Integration**: Direct communication with microcontrollers and development boards
+- **Hardware Sensor Support**: Interface with temperature, motion, GPS, and environmental sensors
+- **Cross-platform Serial Communication**: Works on Windows, Linux, and macOS
+- **PySerial-like API**: Familiar interface for Python developers transitioning to Godot
+- **Game Engine Integration**: Native Godot 4 types and error handling for seamless gamedev workflow
+- **IoT Device Communication**: Connect with WiFi modules, Bluetooth adapters, and cellular modems
+- **Real-time Data Streaming**: Low-latency binary and text operations for responsive applications
+- **Port Auto-discovery**: Automatic enumeration and identification of available serial devices
 
 ## Platform Support
 
@@ -224,6 +226,12 @@ addons/gdserial/
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Keywords & Topics
+
+**GitHub Topics**: `godot`, `serial-communication`, `arduino`, `esp32`, `iot`, `gamedev`, `rust`, `pyserial`, `sensors`, `hardware`, `cross-platform`, `gdext`, `microcontroller`, `embedded`
+
+**Search Keywords**: Godot serial port, Arduino Godot integration, ESP32 game development, IoT Godot plugin, hardware communication gamedev, PySerial Godot, sensor data Godot, real-time hardware control
 
 ## Dependencies
 
