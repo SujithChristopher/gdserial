@@ -1,0 +1,147 @@
+name: Alpha Release Build
+
+on:
+  push:
+    tags:
+      - 'v*-alpha*'
+      - 'v*-beta*'
+      - 'v*-rc*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build for ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - name: "Windows x64"
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            lib_name: gdserial.dll
+            bin_dir: windows-x86_64
+          - name: "Linux x64"
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            lib_name: libgdserial.so
+            bin_dir: linux-x86_64
+          - name: "macOS Intel"
+            os: macos-latest
+            target: x86_64-apple-darwin
+            lib_name: libgdserial.dylib
+            bin_dir: macos-x86_64
+          - name: "macOS Apple Silicon"
+            os: macos-latest
+            target: aarch64-apple-darwin
+            lib_name: libgdserial.dylib
+            bin_dir: macos-arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install system dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libudev-dev pkg-config
+
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        target: ${{ matrix.target }}
+
+    - name: Build release
+      run: cargo build --release --target ${{ matrix.target }}
+      shell: bash
+
+    - name: Create release structure
+      run: |
+        mkdir -p release-artifacts/addons/gdserial/bin/${{ matrix.bin_dir }}
+        cp target/${{ matrix.target }}/release/${{ matrix.lib_name }} release-artifacts/addons/gdserial/bin/${{ matrix.bin_dir }}/
+        
+        # Copy addon files
+        cp addons/gdserial/gdserial.gdextension release-artifacts/addons/gdserial/
+        cp addons/gdserial/plugin.cfg release-artifacts/addons/gdserial/
+        cp addons/gdserial/plugin.gd release-artifacts/addons/gdserial/
+        cp addons/gdserial/icon.png release-artifacts/addons/gdserial/
+        cp -r addons/gdserial/README.md release-artifacts/addons/gdserial/ 2>/dev/null || true
+        
+        # Copy root files
+        cp LICENSE release-artifacts/
+        cp README.md release-artifacts/
+        cp RELEASE_NOTES.md release-artifacts/ 2>/dev/null || true
+      shell: bash
+
+    - name: Create archive
+      run: |
+        cd release-artifacts
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          7z a ../gdserial-${{ matrix.target }}-alpha.zip *
+        else
+          tar -czf ../gdserial-${{ matrix.target }}-alpha.tar.gz *
+        fi
+      shell: bash
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: gdserial-${{ matrix.target }}-alpha
+        path: |
+          *.zip
+          *.tar.gz
+
+  release:
+    name: Create Alpha Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+
+    - name: Create release body
+      run: |
+        echo "## Alpha Release - Apple Silicon Support" > release_body.md
+        echo "" >> release_body.md
+        echo "🧪 **This is an alpha release for testing Apple Silicon (M1/M2/M3) compatibility.**" >> release_body.md
+        echo "" >> release_body.md
+        echo "### What's New" >> release_body.md
+        echo "- ✅ Apple Silicon (ARM64) macOS support" >> release_body.md
+        echo "- ✅ Architecture-specific library loading" >> release_body.md
+        echo "- ✅ Cross-platform build improvements" >> release_body.md
+        echo "" >> release_body.md
+        echo "### Testing Instructions" >> release_body.md
+        echo "**For M1/M2/M3 Mac users:**" >> release_body.md
+        echo "1. Download the \`gdserial-aarch64-apple-darwin-alpha.tar.gz\` file" >> release_body.md
+        echo "2. Extract to your Godot project's addons folder" >> release_body.md
+        echo "3. Test serial communication functionality" >> release_body.md
+        echo "4. Report any issues on GitHub" >> release_body.md
+        echo "" >> release_body.md
+        echo "### Files" >> release_body.md
+        echo "- \`*-x86_64-*\`: Intel/AMD 64-bit systems" >> release_body.md
+        echo "- \`*-aarch64-*\`: Apple Silicon (M1/M2/M3) Macs" >> release_body.md
+        echo "" >> release_body.md
+        echo "---" >> release_body.md
+        echo "Please test thoroughly and report any issues before we create a stable release." >> release_body.md
+
+    - name: Create Alpha Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          */gdserial-*-alpha.zip
+          */gdserial-*-alpha.tar.gz
+        body_path: release_body.md
+        name: "Alpha Release ${{ github.ref_name }}"
+        draft: false
+        prerelease: true
+        make_latest: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
