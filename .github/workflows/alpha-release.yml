@@ -142,6 +142,5 @@ jobs:
         name: "Alpha Release ${{ github.ref_name }}"
         draft: false
         prerelease: true
-        make_latest: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
