@@ -24,7 +24,8 @@ A high-performance Rust-based serial communication library for Godot 4 game engi
 | **Windows** | x64 | ✅ Supported | `COM1`, `COM3`, `COM8` |
 | **Linux** | x64 | ✅ Supported | `/dev/ttyUSB0`, `/dev/ttyACM0` |
 | **Linux** | ARM64 | 📋 Planned | `/dev/ttyUSB0`, `/dev/ttyACM0` |
-| **macOS** | x64 | ✅ Supported | `/dev/tty.usbserial-*`, `/dev/tty.usbmodem*` |
+| **macOS** | x64 (Intel) | ✅ Supported | `/dev/tty.usbserial-*`, `/dev/tty.usbmodem*` |
+| **macOS** | ARM64 (Apple Silicon) | ✅ Supported | `/dev/tty.usbserial-*`, `/dev/tty.usbmodem*` |
 
 ## Installation
 
