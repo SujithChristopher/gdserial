@@ -2,47 +2,17 @@ use godot::prelude::*;
 use serialport::{SerialPort, SerialPortType};
 use std::time::Duration;
 
-/// Get device name for a USB device based on USB descriptors and VID
-fn get_usb_device_name(vid: u16, pid: u16, manufacturer: &Option<String>, product: &Option<String>) -> String {
-    // Priority 1: Use the product string from USB descriptor if available
+/// Get device name for a USB device based on USB descriptors
+fn get_usb_device_name(_vid: u16, _pid: u16, _manufacturer: &Option<String>, product: &Option<String>) -> String {
+    // Use the product string from USB descriptor if available
     if let Some(product) = product {
-        // Many devices have good product names like "Arduino Uno R3", "ESP32-S3", etc.
-        return product.clone();
+        if !product.trim().is_empty() {
+            return product.clone();
+        }
     }
     
-    // Priority 2: Use manufacturer + basic identification
-    if let Some(manufacturer) = manufacturer {
-        // Try to add some context based on well-known VIDs
-        let device_type = match vid {
-            0x2341 => "Arduino Board",           // Arduino
-            0x16c0 => "Teensy Board",            // PJRC (Teensy)
-            0x303a => "ESP32 Board",             // Espressif ESP32
-            0x2e8a => "Raspberry Pi Board",      // Raspberry Pi Foundation
-            0x239a => "Adafruit Board",          // Adafruit
-            0x1b4f => "SparkFun Board",          // SparkFun
-            0x0403 => "FTDI USB-Serial",         // FTDI
-            0x10c4 => "Silicon Labs USB-Serial", // Silicon Labs
-            0x1a86 => "USB-Serial Adapter",      // QinHeng (CH340/CH341)
-            0x067b => "Prolific USB-Serial",     // Prolific
-            _ => "USB Device"
-        };
-        return format!("{} {}", manufacturer, device_type);
-    }
-    
-    // Priority 3: Generic names based on well-known VIDs
-    match vid {
-        0x2341 => format!("Arduino Board (VID: {:04X}, PID: {:04X})", vid, pid),
-        0x16c0 => format!("Teensy Board (VID: {:04X}, PID: {:04X})", vid, pid),
-        0x303a => format!("ESP32 Board (VID: {:04X}, PID: {:04X})", vid, pid),
-        0x2e8a => format!("Raspberry Pi Board (VID: {:04X}, PID: {:04X})", vid, pid),
-        0x239a => format!("Adafruit Board (VID: {:04X}, PID: {:04X})", vid, pid),
-        0x1b4f => format!("SparkFun Board (VID: {:04X}, PID: {:04X})", vid, pid),
-        0x0403 => "FTDI USB-Serial Converter".to_string(),
-        0x10c4 => "Silicon Labs USB-Serial".to_string(),
-        0x1a86 => "CH340/CH341 USB-Serial".to_string(),
-        0x067b => "Prolific USB-Serial".to_string(),
-        _ => format!("USB Serial Device (VID: {:04X}, PID: {:04X})", vid, pid)
-    }
+    // Simple fallback for devices without product descriptor
+    "USB Serial Device".to_string()
 }
 
 struct GdSerialExtension;
