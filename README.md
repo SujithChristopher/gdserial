@@ -27,6 +27,8 @@ A high-performance Rust-based serial communication library for Godot 4 game engi
 | **macOS** | x64 (Intel) | ✅ Supported | `/dev/tty.usbserial-*`, `/dev/tty.usbmodem*` |
 | **macOS** | ARM64 (Apple Silicon) | ✅ Supported | `/dev/tty.usbserial-*`, `/dev/tty.usbmodem*` |
 
+> **macOS Users**: If you encounter "malware" warnings or library loading errors, see [MACOS_SECURITY.md](MACOS_SECURITY.md) for solutions.
+
 ## Installation
 
 ### Option 1: GitHub Releases (Recommended)
