@@ -2,6 +2,49 @@ use godot::prelude::*;
 use serialport::{SerialPort, SerialPortType};
 use std::time::Duration;
 
+/// Get device name for a USB device based on USB descriptors and VID
+fn get_usb_device_name(vid: u16, pid: u16, manufacturer: &Option<String>, product: &Option<String>) -> String {
+    // Priority 1: Use the product string from USB descriptor if available
+    if let Some(product) = product {
+        // Many devices have good product names like "Arduino Uno R3", "ESP32-S3", etc.
+        return product.clone();
+    }
+    
+    // Priority 2: Use manufacturer + basic identification
+    if let Some(manufacturer) = manufacturer {
+        // Try to add some context based on well-known VIDs
+        let device_type = match vid {
+            0x2341 => "Arduino Board",           // Arduino
+            0x16c0 => "Teensy Board",            // PJRC (Teensy)
+            0x303a => "ESP32 Board",             // Espressif ESP32
+            0x2e8a => "Raspberry Pi Board",      // Raspberry Pi Foundation
+            0x239a => "Adafruit Board",          // Adafruit
+            0x1b4f => "SparkFun Board",          // SparkFun
+            0x0403 => "FTDI USB-Serial",         // FTDI
+            0x10c4 => "Silicon Labs USB-Serial", // Silicon Labs
+            0x1a86 => "USB-Serial Adapter",      // QinHeng (CH340/CH341)
+            0x067b => "Prolific USB-Serial",     // Prolific
+            _ => "USB Device"
+        };
+        return format!("{} {}", manufacturer, device_type);
+    }
+    
+    // Priority 3: Generic names based on well-known VIDs
+    match vid {
+        0x2341 => format!("Arduino Board (VID: {:04X}, PID: {:04X})", vid, pid),
+        0x16c0 => format!("Teensy Board (VID: {:04X}, PID: {:04X})", vid, pid),
+        0x303a => format!("ESP32 Board (VID: {:04X}, PID: {:04X})", vid, pid),
+        0x2e8a => format!("Raspberry Pi Board (VID: {:04X}, PID: {:04X})", vid, pid),
+        0x239a => format!("Adafruit Board (VID: {:04X}, PID: {:04X})", vid, pid),
+        0x1b4f => format!("SparkFun Board (VID: {:04X}, PID: {:04X})", vid, pid),
+        0x0403 => "FTDI USB-Serial Converter".to_string(),
+        0x10c4 => "Silicon Labs USB-Serial".to_string(),
+        0x1a86 => "CH340/CH341 USB-Serial".to_string(),
+        0x067b => "Prolific USB-Serial".to_string(),
+        _ => format!("USB Serial Device (VID: {:04X}, PID: {:04X})", vid, pid)
+    }
+}
+
 struct GdSerialExtension;
 
 #[gdextension]
@@ -42,17 +85,25 @@ impl GdSerial {
                     let mut port_info = Dictionary::new();
                     port_info.set(GString::from("port_name"), GString::from(&port.port_name));
                     
-                    let port_type = match &port.port_type {
+                    let (port_type, device_name) = match &port.port_type {
                         SerialPortType::UsbPort(usb_info) => {
-                            format!("USB - VID: {:04x}, PID: {:04x}", 
-                                   usb_info.vid, usb_info.pid)
+                            let port_type = format!("USB - VID: {:04X}, PID: {:04X}", 
+                                   usb_info.vid, usb_info.pid);
+                            let device_name = get_usb_device_name(
+                                usb_info.vid, 
+                                usb_info.pid, 
+                                &usb_info.manufacturer, 
+                                &usb_info.product
+                            );
+                            (port_type, device_name)
                         }
-                        SerialPortType::PciPort => "PCI".to_string(),
-                        SerialPortType::BluetoothPort => "Bluetooth".to_string(),
-                        SerialPortType::Unknown => "Unknown".to_string(),
+                        SerialPortType::PciPort => ("PCI".to_string(), "PCI Serial Port".to_string()),
+                        SerialPortType::BluetoothPort => ("Bluetooth".to_string(), "Bluetooth Serial Port".to_string()),
+                        SerialPortType::Unknown => ("Unknown".to_string(), "Unknown Serial Device".to_string()),
                     };
                     
                     port_info.set(GString::from("port_type"), GString::from(port_type));
+                    port_info.set(GString::from("device_name"), GString::from(device_name));
                     ports_dict.set(i as i32, port_info);
                 }
             }
@@ -62,6 +113,40 @@ impl GdSerial {
         }
         
         ports_dict
+    }
+    
+    #[func]
+    pub fn get_port_device_name(&self, port_name: GString) -> GString {
+        let port_name_str = port_name.to_string();
+        
+        match serialport::available_ports() {
+            Ok(ports) => {
+                for port in ports {
+                    if port.port_name == port_name_str {
+                        let device_name = match &port.port_type {
+                            SerialPortType::UsbPort(usb_info) => {
+                                get_usb_device_name(
+                                    usb_info.vid, 
+                                    usb_info.pid, 
+                                    &usb_info.manufacturer, 
+                                    &usb_info.product
+                                )
+                            }
+                            SerialPortType::PciPort => "PCI Serial Port".to_string(),
+                            SerialPortType::BluetoothPort => "Bluetooth Serial Port".to_string(),
+                            SerialPortType::Unknown => "Unknown Serial Device".to_string(),
+                        };
+                        return GString::from(device_name);
+                    }
+                }
+                // Port not found, return the port name itself
+                port_name
+            }
+            Err(_) => {
+                // Error listing ports, return the port name itself
+                port_name
+            }
+        }
     }
     
     #[func]
@@ -92,7 +177,7 @@ impl GdSerial {
         {
             Ok(port) => {
                 self.port = Some(port);
-                godot_print!("Port {} opened successfully", self.port_name);
+                // Port opened successfully - removed print output per issue #1
                 true
             }
             Err(e) => {
@@ -106,7 +191,7 @@ impl GdSerial {
     pub fn close(&mut self) {
         if self.port.is_some() {
             self.port = None;
-            godot_print!("Port {} closed", self.port_name);
+            // Port closed - removed print output per issue #1
         }
     }
     

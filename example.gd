@@ -9,12 +9,20 @@ func _ready():
 	# Create a new GdSerial instance
 	serial = GdSerial.new()
 	
-	# List all available COM ports
+	# List all available COM ports with device names
 	print("Available COM ports:")
 	var ports = serial.list_ports()
 	for i in range(ports.size()):
 		var port_info = ports[i]
-		print("Port: ", port_info["port_name"], " - Type: ", port_info["port_type"])
+		print("Port: ", port_info["port_name"], " (", port_info["device_name"], ") - Type: ", port_info["port_type"])
+	
+	# Example: Get device name for a specific port
+	if ports.size() > 0:
+		var first_port = ports[0]["port_name"]
+		var device_name = serial.get_port_device_name(first_port)
+		print("Device name for ", first_port, ": ", device_name)
+		print("Note: Device names use USB product descriptor when available")
+		print("      Falls back to manufacturer + device type for known VIDs")
 	
 	# Configure serial port settings
 	serial.set_port("COM3")  # Change this to your actual port
