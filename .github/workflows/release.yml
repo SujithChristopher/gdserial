@@ -28,6 +28,9 @@ jobs:
           - os: macos-latest
             target: x86_64-apple-darwin
             lib_name: libgdserial.dylib
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            lib_name: libgdserial.dylib
 
     steps:
     - name: Checkout code
@@ -48,46 +51,11 @@ jobs:
       run: cargo build --release --target ${{ matrix.target }}
       shell: bash
 
-    - name: Create release directory
-      run: mkdir -p release-artifacts
-      shell: bash
-
-    - name: Copy library (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        mkdir -p addons/gdserial/bin/windows
-        cp target/${{ matrix.target }}/release/${{ matrix.lib_name }} addons/gdserial/bin/windows/${{ matrix.lib_name }}
-        cp -r addons release-artifacts/
-        cp LICENSE release-artifacts/
-        cp README.md release-artifacts/
-      shell: bash
-
-    - name: Copy library (Unix)
-      if: matrix.os != 'windows-latest'
-      run: |
-        mkdir -p addons/gdserial/bin/${{ matrix.os == 'macos-latest' && 'macos' || 'linux' }}
-        cp target/${{ matrix.target }}/release/${{ matrix.lib_name }} addons/gdserial/bin/${{ matrix.os == 'macos-latest' && 'macos' || 'linux' }}/${{ matrix.lib_name }}
-        cp -r addons release-artifacts/
-        cp LICENSE release-artifacts/
-        cp README.md release-artifacts/
-      shell: bash
-
-    - name: Create archive
-      run: |
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          7z a gdserial-${{ matrix.target }}.zip release-artifacts/*
-        else
-          tar -czf gdserial-${{ matrix.target }}.tar.gz -C release-artifacts .
-        fi
-      shell: bash
-
-    - name: Upload artifacts
+    - name: Upload build artifacts for assembly
       uses: actions/upload-artifact@v4
       with:
         name: gdserial-${{ matrix.target }}
-        path: |
-          *.zip
-          *.tar.gz
+        path: target/${{ matrix.target }}/release/${{ matrix.lib_name }}
 
   release:
     name: Create Release
@@ -102,13 +70,77 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
 
+    - name: Create addon release structure
+      run: |
+        # Create addon directory structure
+        mkdir -p release/addons/gdserial/bin/windows-x86_64
+        mkdir -p release/addons/gdserial/bin/linux-x86_64
+        mkdir -p release/addons/gdserial/bin/macos-x86_64
+        mkdir -p release/addons/gdserial/bin/macos-arm64
+        
+        # Copy platform-specific libraries
+        cp gdserial-x86_64-pc-windows-msvc/gdserial.dll release/addons/gdserial/bin/windows-x86_64/
+        cp gdserial-x86_64-unknown-linux-gnu/libgdserial.so release/addons/gdserial/bin/linux-x86_64/
+        cp gdserial-x86_64-apple-darwin/libgdserial.dylib release/addons/gdserial/bin/macos-x86_64/
+        cp gdserial-aarch64-apple-darwin/libgdserial.dylib release/addons/gdserial/bin/macos-arm64/
+        
+        # Copy addon files
+        cp addons/gdserial/gdserial.gdextension release/addons/gdserial/
+        cp addons/gdserial/plugin.cfg release/addons/gdserial/
+        cp addons/gdserial/plugin.gd release/addons/gdserial/
+        cp addons/gdserial/icon.png release/addons/gdserial/
+        cp addons/gdserial/README.md release/addons/gdserial/ 2>/dev/null || true
+        
+        # Copy root documentation
+        cp LICENSE release/
+        cp README.md release/
+        cp example.gd release/
+        cp RELEASE_NOTES.md release/ 2>/dev/null || true
+        
+        # Create complete addon archive for Godot Asset Library
+        cd release
+        zip -r ../gdserial-complete-addon-v${{ github.ref_name }}.zip .
+        tar -czf ../gdserial-complete-addon-v${{ github.ref_name }}.tar.gz .
+      shell: bash
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          */gdserial-*.zip
-          */gdserial-*.tar.gz
-        body_path: RELEASE_NOTES.md
+          gdserial-complete-addon-v${{ github.ref_name }}.zip
+          gdserial-complete-addon-v${{ github.ref_name }}.tar.gz
+        body: |
+          ## GdSerial v${{ github.ref_name }}
+          
+          Serial communication library for Godot 4 with device name support.
+          
+          ### New Features
+          - ✅ USB device name detection using product descriptors
+          - ✅ Apple Silicon (ARM64) macOS support
+          - ✅ Removed verbose logging on successful port operations
+          - ✅ Clean, simple API with automatic device recognition
+          
+          ### Installation
+          1. Download `gdserial-complete-addon-v${{ github.ref_name }}.zip`
+          2. Extract to your Godot project
+          3. Enable the plugin in Project Settings → Plugins
+          
+          ### Usage
+          ```gdscript
+          var serial = GdSerial.new()
+          var ports = serial.list_ports()
+          for i in range(ports.size()):
+              var port = ports[i]
+              print("Port: ", port["port_name"], " (", port["device_name"], ")")
+          ```
+          
+          ### Supported Platforms
+          - Windows x64
+          - Linux x64
+          - macOS Intel (x86_64)
+          - macOS Apple Silicon (ARM64)
+          
+          Ready for Godot Asset Library!
         draft: false
         prerelease: false
       env:
