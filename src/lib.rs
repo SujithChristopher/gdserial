@@ -165,9 +165,28 @@ impl GdSerial {
         }
     }
     
+    fn is_connection_alive(&mut self) -> bool {
+        match &mut self.port {
+            Some(port) => {
+                match port.bytes_to_read() {
+                    Ok(_) => true,
+                    Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
+                        self.port = None;
+                        false
+                    }
+                    Err(_) => true,
+                }
+            }
+            None => false
+        }
+    }
+    
     #[func]
-    pub fn is_open(&self) -> bool {
-        self.port.is_some()
+    pub fn is_open(&mut self) -> bool {
+        if self.port.is_none() {
+            return false;
+        }
+        self.is_connection_alive()
     }
     
     #[func]
@@ -179,11 +198,21 @@ impl GdSerial {
                     Ok(_) => {
                         match port.flush() {
                             Ok(_) => true,
+                            Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
+                                godot_error!("Device disconnected during flush");
+                                self.port = None;
+                                false
+                            }
                             Err(e) => {
                                 godot_error!("Failed to flush port: {}", e);
                                 false
                             }
                         }
+                    }
+                    Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
+                        godot_error!("Device disconnected during write");
+                        self.port = None;
+                        false
                     }
                     Err(e) => {
                         godot_error!("Failed to write to port: {}", e);
@@ -222,6 +251,11 @@ impl GdSerial {
                     Ok(bytes_read) => {
                         buffer.truncate(bytes_read);
                         PackedByteArray::from(&buffer[..])
+                    }
+                    Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
+                        godot_error!("Device disconnected during read");
+                        self.port = None;
+                        PackedByteArray::new()
                     }
                     Err(e) => {
                         godot_error!("Failed to read from port: {}", e);
@@ -265,6 +299,11 @@ impl GdSerial {
                                 line.push(ch);
                             }
                         }
+                        Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
+                            godot_error!("Device disconnected during readline");
+                            self.port = None;
+                            return GString::new();
+                        }
                         Err(e) => {
                             if line.is_empty() {
                                 godot_error!("Failed to read line: {}", e);
@@ -291,6 +330,11 @@ impl GdSerial {
             Some(port) => {
                 match port.bytes_to_read() {
                     Ok(bytes) => bytes as u32,
+                    Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
+                        godot_error!("Device disconnected while checking available bytes");
+                        self.port = None;
+                        0
+                    }
                     Err(e) => {
                         godot_error!("Failed to get available bytes: {}", e);
                         0
