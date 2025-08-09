@@ -16,15 +16,6 @@ func _ready():
 		var port_info = ports[i]
 		print("Port: ", port_info["port_name"], " (", port_info["device_name"], ") - Type: ", port_info["port_type"])
 	
-	# Example: Device names are now directly available from list_ports()
-	if ports.size() > 0:
-		var first_port = ports[0]
-		print("First port details:")
-		print("  Port: ", first_port["port_name"])
-		print("  Device: ", first_port["device_name"])
-		print("  Type: ", first_port["port_type"])
-		print("Note: Device names use USB product descriptor when available")
-	
 	# Configure serial port settings
 	serial.set_port("COM3")  # Change this to your actual port
 	serial.set_baud_rate(9600)
@@ -34,7 +25,7 @@ func _ready():
 	if serial.open():
 		print("Serial port opened successfully!")
 		
-		# Example: Write string data
+		# Example: Write string data without newline
 		serial.write_string("Hello Arduino!")
 		
 		# Example: Write line with newline
