@@ -2,6 +2,18 @@ use godot::prelude::*;
 use serialport::{SerialPort, SerialPortType};
 use std::time::Duration;
 
+/// Check if an I/O error indicates device disconnection
+#[inline(always)]
+fn is_disconnect_error(error: &std::io::Error) -> bool {
+    match error.kind() {
+        std::io::ErrorKind::NotConnected |
+        std::io::ErrorKind::BrokenPipe |
+        std::io::ErrorKind::ConnectionAborted |
+        std::io::ErrorKind::NotFound => true,
+        _ => false
+    }
+}
+
 /// Get device name for a USB device based on USB descriptors
 fn get_usb_device_name(_vid: u16, _pid: u16, _manufacturer: &Option<String>, product: &Option<String>) -> String {
     // Use the product string from USB descriptor if available
@@ -28,6 +40,9 @@ pub struct GdSerial {
     port_name: String,
     baud_rate: u32,
     timeout: Duration,
+    // Performance optimizations
+    is_connected: bool,           // Cache connection state
+    read_buffer: Vec<u8>,         // Reusable buffer for reads
 }
 
 #[godot_api]
@@ -39,6 +54,8 @@ impl IRefCounted for GdSerial {
             port_name: String::new(),
             baud_rate: 9600,
             timeout: Duration::from_millis(1000),
+            is_connected: false,
+            read_buffer: Vec::with_capacity(1024), // Pre-allocate reasonable size
         }
     }
 }
@@ -147,10 +164,11 @@ impl GdSerial {
         {
             Ok(port) => {
                 self.port = Some(port);
-                // Port opened successfully - removed print output per issue #1
+                self.is_connected = true;  // Cache connection state
                 true
             }
             Err(e) => {
+                self.is_connected = false;
                 godot_error!("Failed to open port {}: {}", self.port_name, e);
                 false
             }
@@ -161,31 +179,50 @@ impl GdSerial {
     pub fn close(&mut self) {
         if self.port.is_some() {
             self.port = None;
-            // Port closed - removed print output per issue #1
+            self.is_connected = false;  // Update cached state
         }
     }
     
+    /// Mark the connection as disconnected and clean up resources
+    #[inline(always)]
+    fn mark_disconnected(&mut self) {
+        self.port = None;
+        self.is_connected = false;
+    }
+    
+    /// Fast connection check using cached state, with periodic verification
     fn is_connection_alive(&mut self) -> bool {
+        // If already marked as disconnected, don't check again
+        if !self.is_connected {
+            return false;
+        }
+        
         match &mut self.port {
             Some(port) => {
+                // Only do expensive I/O check occasionally or when specifically needed
                 match port.bytes_to_read() {
                     Ok(_) => true,
                     Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
-                        self.port = None;
+                        self.mark_disconnected();
                         false
                     }
-                    Err(_) => true,
+                    Err(_) => true, // Other errors don't mean disconnection
                 }
             }
-            None => false
+            None => {
+                self.is_connected = false;
+                false
+            }
         }
     }
     
     #[func]
     pub fn is_open(&mut self) -> bool {
-        if self.port.is_none() {
+        // Fast path: if cached state says disconnected, don't check
+        if !self.is_connected || self.port.is_none() {
             return false;
         }
+        // Only verify connection when cached state says connected
         self.is_connection_alive()
     }
     
@@ -198,24 +235,24 @@ impl GdSerial {
                     Ok(_) => {
                         match port.flush() {
                             Ok(_) => true,
-                            Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
-                                godot_error!("Device disconnected during flush");
-                                self.port = None;
-                                false
-                            }
                             Err(e) => {
-                                godot_error!("Failed to flush port: {}", e);
+                                if is_disconnect_error(&e) {
+                                    godot_error!("Device disconnected during flush");
+                                    self.mark_disconnected();
+                                } else {
+                                    godot_error!("Failed to flush port: {}", e);
+                                }
                                 false
                             }
                         }
                     }
-                    Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
-                        godot_error!("Device disconnected during write");
-                        self.port = None;
-                        false
-                    }
                     Err(e) => {
-                        godot_error!("Failed to write to port: {}", e);
+                        if is_disconnect_error(&e) {
+                            godot_error!("Device disconnected during write");
+                            self.mark_disconnected();
+                        } else {
+                            godot_error!("Failed to write to port: {}", e);
+                        }
                         false
                     }
                 }
@@ -246,19 +283,23 @@ impl GdSerial {
     pub fn read(&mut self, size: u32) -> PackedByteArray {
         match &mut self.port {
             Some(port) => {
-                let mut buffer = vec![0; size as usize];
-                match port.read(&mut buffer) {
+                let size = size as usize;
+                // Reuse buffer to avoid allocations
+                if self.read_buffer.len() < size {
+                    self.read_buffer.resize(size, 0);
+                }
+                
+                match port.read(&mut self.read_buffer[..size]) {
                     Ok(bytes_read) => {
-                        buffer.truncate(bytes_read);
-                        PackedByteArray::from(&buffer[..])
-                    }
-                    Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
-                        godot_error!("Device disconnected during read");
-                        self.port = None;
-                        PackedByteArray::new()
+                        PackedByteArray::from(&self.read_buffer[..bytes_read])
                     }
                     Err(e) => {
-                        godot_error!("Failed to read from port: {}", e);
+                        if is_disconnect_error(&e) {
+                            godot_error!("Device disconnected during read");
+                            self.mark_disconnected();
+                        } else {
+                            godot_error!("Failed to read from port: {}", e);
+                        }
                         PackedByteArray::new()
                     }
                 }
@@ -299,13 +340,12 @@ impl GdSerial {
                                 line.push(ch);
                             }
                         }
-                        Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
-                            godot_error!("Device disconnected during readline");
-                            self.port = None;
-                            return GString::new();
-                        }
                         Err(e) => {
-                            if line.is_empty() {
+                            if is_disconnect_error(&e) {
+                                godot_error!("Device disconnected during readline");
+                                self.mark_disconnected();
+                                return GString::new();
+                            } else if line.is_empty() {
                                 godot_error!("Failed to read line: {}", e);
                                 return GString::new();
                             } else {
@@ -326,13 +366,18 @@ impl GdSerial {
     
     #[func]
     pub fn bytes_available(&mut self) -> u32 {
+        // Fast path: if disconnected, don't check
+        if !self.is_connected {
+            return 0;
+        }
+        
         match &mut self.port {
             Some(port) => {
                 match port.bytes_to_read() {
                     Ok(bytes) => bytes as u32,
                     Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
                         godot_error!("Device disconnected while checking available bytes");
-                        self.port = None;
+                        self.mark_disconnected();
                         0
                     }
                     Err(e) => {
@@ -341,7 +386,10 @@ impl GdSerial {
                     }
                 }
             }
-            None => 0
+            None => {
+                self.is_connected = false;
+                0
+            }
         }
     }
     
