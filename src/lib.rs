@@ -102,39 +102,6 @@ impl GdSerial {
         ports_dict
     }
     
-    #[func]
-    pub fn get_port_device_name(&self, port_name: GString) -> GString {
-        let port_name_str = port_name.to_string();
-        
-        match serialport::available_ports() {
-            Ok(ports) => {
-                for port in ports {
-                    if port.port_name == port_name_str {
-                        let device_name = match &port.port_type {
-                            SerialPortType::UsbPort(usb_info) => {
-                                get_usb_device_name(
-                                    usb_info.vid, 
-                                    usb_info.pid, 
-                                    &usb_info.manufacturer, 
-                                    &usb_info.product
-                                )
-                            }
-                            SerialPortType::PciPort => "PCI Serial Port".to_string(),
-                            SerialPortType::BluetoothPort => "Bluetooth Serial Port".to_string(),
-                            SerialPortType::Unknown => "Unknown Serial Device".to_string(),
-                        };
-                        return GString::from(device_name);
-                    }
-                }
-                // Port not found, return the port name itself
-                port_name
-            }
-            Err(_) => {
-                // Error listing ports, return the port name itself
-                port_name
-            }
-        }
-    }
     
     #[func]
     pub fn set_port(&mut self, port_name: GString) {

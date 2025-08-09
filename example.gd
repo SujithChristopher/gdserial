@@ -16,13 +16,14 @@ func _ready():
 		var port_info = ports[i]
 		print("Port: ", port_info["port_name"], " (", port_info["device_name"], ") - Type: ", port_info["port_type"])
 	
-	# Example: Get device name for a specific port
+	# Example: Device names are now directly available from list_ports()
 	if ports.size() > 0:
-		var first_port = ports[0]["port_name"]
-		var device_name = serial.get_port_device_name(first_port)
-		print("Device name for ", first_port, ": ", device_name)
+		var first_port = ports[0]
+		print("First port details:")
+		print("  Port: ", first_port["port_name"])
+		print("  Device: ", first_port["device_name"])
+		print("  Type: ", first_port["port_type"])
 		print("Note: Device names use USB product descriptor when available")
-		print("      Falls back to manufacturer + device type for known VIDs")
 	
 	# Configure serial port settings
 	serial.set_port("COM3")  # Change this to your actual port
