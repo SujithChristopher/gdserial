@@ -29,7 +29,7 @@ var arduino = preload("res://arduino_example/arduino_communication.gd").new()
 add_child(arduino)
 
 # Change the port_name variable to match your Arduino
-# The script will automatically connect and test all commands
+# The script will automatically connect and test all commands using print() and println()
 ```
 
 **What it does:**

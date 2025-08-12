@@ -164,36 +164,15 @@ impl GdSerial {
             return false;
         }
         
-        // Check if port still exists in available ports list
+        // Primary disconnection detection: check if port still exists in system
+        // This is the most reliable method on Windows (same as working serialtest example)
         if !self.port_still_available() {
             self.mark_disconnected();
             return false;
         }
         
-        match &mut self.port {
-            Some(port) => {
-                match port.bytes_to_read() {
-                    Ok(_) => true,
-                    Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
-                        self.mark_disconnected();
-                        false
-                    }
-                    Err(_) => {
-                        // For other errors, double-check port availability
-                        if !self.port_still_available() {
-                            self.mark_disconnected();
-                            false
-                        } else {
-                            true
-                        }
-                    }
-                }
-            }
-            None => {
-                self.is_connected = false;
-                false
-            }
-        }
+        // Port still exists in system, so we're connected
+        true
     }
     
     /// Check if the port still exists in the system's available ports
@@ -218,16 +197,34 @@ impl GdSerial {
     
     #[func]
     pub fn write(&mut self, data: PackedByteArray) -> bool {
+        let bytes = data.to_vec();
+        self.write_bytes(&bytes)
+    }
+    
+    #[func]
+    pub fn print(&mut self, data: GString) -> bool {
+        let bytes = data.to_string().into_bytes();
+        self.write_bytes(&bytes)
+    }
+    
+    #[func]
+    pub fn println(&mut self, data: GString) -> bool {
+        let mut data_str = data.to_string();
+        data_str.push('\n');
+        let bytes = data_str.into_bytes();
+        self.write_bytes(&bytes)
+    }
+    
+    /// Internal optimized write function
+    fn write_bytes(&mut self, bytes: &[u8]) -> bool {
         match &mut self.port {
             Some(port) => {
-                let bytes = data.to_vec();
-                match port.write_all(&bytes) {
+                match port.write_all(bytes) {
                     Ok(_) => {
                         match port.flush() {
                             Ok(_) => true,
                             Err(e) => {
                                 if is_disconnect_error(&e) {
-                                    godot_error!("Device disconnected during flush");
                                     self.mark_disconnected();
                                 } else {
                                     godot_error!("Failed to flush port: {}", e);
@@ -238,7 +235,6 @@ impl GdSerial {
                     }
                     Err(e) => {
                         if is_disconnect_error(&e) {
-                            godot_error!("Device disconnected during write");
                             self.mark_disconnected();
                         } else {
                             godot_error!("Failed to write to port: {}", e);
@@ -252,21 +248,6 @@ impl GdSerial {
                 false
             }
         }
-    }
-    
-    #[func]
-    pub fn write_string(&mut self, data: GString) -> bool {
-        let bytes = data.to_string().into_bytes();
-        let packed_bytes = PackedByteArray::from(&bytes[..]);
-        self.write(packed_bytes)
-    }
-    
-    #[func]
-    pub fn writeline(&mut self, data: GString) -> bool {
-        let data_with_newline = format!("{}\n", data.to_string());
-        let bytes = data_with_newline.into_bytes();
-        let packed_bytes = PackedByteArray::from(&bytes[..]);
-        self.write(packed_bytes)
     }
     
     #[func]

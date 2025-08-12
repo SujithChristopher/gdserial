@@ -2,7 +2,7 @@
 
 <img src="addons/gdserial/icon.png" alt="GdSerial Icon" width="64" height="64" align="left" style="margin-right: 20px;">
 
-A high-performance Rust-based serial communication library for Godot 4 game engine, providing PySerial-like functionality through gdext. Enable direct hardware communication with Arduino, ESP32, sensors, modems, and IoT devices in your Godot games and applications.
+A high-performance Rust-based serial communication library for Godot 4 game engine, providing Arduino-like functionality through gdext. Enable direct hardware communication with Arduino, ESP32, sensors, modems, and IoT devices in your Godot games and applications.
 
 <br clear="left">
 
@@ -11,7 +11,7 @@ A high-performance Rust-based serial communication library for Godot 4 game engi
 - **Arduino & ESP32 Integration**: Direct communication with microcontrollers and development boards
 - **Hardware Sensor Support**: Interface with temperature, motion, GPS, and environmental sensors
 - **Cross-platform Serial Communication**: Works on Windows, Linux, and macOS
-- **PySerial-like API**: Familiar interface for Python developers transitioning to Godot
+- **Arduino-like API**: Familiar `print()` and `println()` functions for easy Arduino integration
 - **Game Engine Integration**: Native Godot 4 types and error handling for seamless gamedev workflow
 - **IoT Device Communication**: Connect with WiFi modules, Bluetooth adapters, and cellular modems
 - **Real-time Data Streaming**: Low-latency binary and text operations for responsive applications
@@ -78,14 +78,14 @@ build_release.bat
 
 #### Data Operations
 - `write(data: PackedByteArray) -> bool` - Write raw bytes
-- `write_string(data: String) -> bool` - Write string data
-- `writeline(data: String) -> bool` - Write string with newline
+- `print(data: String) -> bool` - Write string data (like Arduino print())
+- `println(data: String) -> bool` - Write string with newline (like Arduino println())
 - `read(size: int) -> PackedByteArray` - Read raw bytes
-- `read_string(size: int) -> String` - Read and convert to string
 - `readline() -> String` - Read until newline character
 
 #### Utilities
 - `bytes_available() -> int` - Get number of bytes waiting to be read
+- `check_connection() -> bool` - Verify device is still connected
 - `clear_buffer() -> bool` - Clear input/output buffers
 
 ## Quick Start
@@ -116,8 +116,8 @@ func _ready():
     if serial.open():
         print("Port opened successfully!")
         
-        # Send command
-        serial.writeline("Hello Arduino!")
+        # Send command (like Arduino println())
+        serial.println("Hello Arduino!")
         
         # Wait and read response
         await get_tree().create_timer(0.1).timeout
@@ -136,15 +136,19 @@ func _ready():
 
 ### Arduino Communication
 ```gdscript
-# Send sensor reading request
-serial.writeline("GET_SENSOR")
+# Send sensor reading request (like Arduino println())
+serial.println("GET_SENSOR")
 var reading = serial.readline()
 print("Sensor value: ", reading)
+
+# Check if device is still connected
+if not serial.check_connection():
+    print("Arduino disconnected!")
 ```
 
 ### AT Commands (Modems, WiFi modules)
 ```gdscript
-serial.writeline("AT+VERSION?")
+serial.println("AT+VERSION?")
 var version = serial.readline()
 print("Module version: ", version)
 ```

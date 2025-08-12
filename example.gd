@@ -1,5 +1,5 @@
 # Example GDScript code showing how to use GdSerial
-# This demonstrates the PySerial-like functionality for Godot
+# This demonstrates Arduino-like serial communication for Godot
 
 extends Node
 
@@ -25,22 +25,26 @@ func _ready():
 	if serial.open():
 		print("Serial port opened successfully!")
 		
-		# Example: Write string data without newline
-		serial.write_string("Hello Arduino!")
+		# Example: Write string data without newline (like Arduino print())
+		serial.print("Hello Arduino!")
 		
-		# Example: Write line with newline
-		serial.writeline("AT+VERSION?")
+		# Example: Write line with newline (like Arduino println())
+		serial.println("AT+VERSION?")
 		
 		# Example: Read available data
 		await get_tree().create_timer(0.1).timeout  # Wait for response
 		if serial.bytes_available() > 0:
-			var response = serial.read_string(100)
-			print("Received: ", response)
+			var response_bytes = serial.read(100)
+			print("Received bytes: ", response_bytes)
 		
 		# Example: Read line by line
 		var line = serial.readline()
 		if line != "":
 			print("Line received: ", line)
+		
+		# Example: Check connection health
+		if not serial.check_connection():
+			print("Device disconnected!")
 		
 		# Close the port when done
 		serial.close()
@@ -50,6 +54,11 @@ func _ready():
 # Example function for continuous monitoring
 func monitor_serial():
 	if not serial.is_open():
+		return
+	
+	# Check if device is still connected
+	if not serial.check_connection():
+		print("Device disconnected during monitoring!")
 		return
 	
 	while serial.bytes_available() > 0:

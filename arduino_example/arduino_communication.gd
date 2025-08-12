@@ -83,8 +83,7 @@ func test_communication():
 
 func send_command(command: String):
 	if serial.is_open():
-		var full_command = command + "\n"
-		if serial.write_string(full_command):
+		if serial.println(command):
 			print("Sent: ", command)
 		else:
 			print("Failed to send: ", command)
