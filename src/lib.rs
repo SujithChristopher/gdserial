@@ -164,22 +164,45 @@ impl GdSerial {
             return false;
         }
         
+        // Check if port still exists in available ports list
+        if !self.port_still_available() {
+            self.mark_disconnected();
+            return false;
+        }
+        
         match &mut self.port {
             Some(port) => {
-                // Only do expensive I/O check occasionally or when specifically needed
                 match port.bytes_to_read() {
                     Ok(_) => true,
                     Err(serialport::Error { kind: serialport::ErrorKind::NoDevice, .. }) => {
                         self.mark_disconnected();
                         false
                     }
-                    Err(_) => true, // Other errors don't mean disconnection
+                    Err(_) => {
+                        // For other errors, double-check port availability
+                        if !self.port_still_available() {
+                            self.mark_disconnected();
+                            false
+                        } else {
+                            true
+                        }
+                    }
                 }
             }
             None => {
                 self.is_connected = false;
                 false
             }
+        }
+    }
+    
+    /// Check if the port still exists in the system's available ports
+    fn port_still_available(&self) -> bool {
+        match serialport::available_ports() {
+            Ok(ports) => {
+                ports.iter().any(|p| p.port_name == self.port_name)
+            }
+            Err(_) => true, // If we can't check, assume it's still there
         }
     }
     
@@ -337,6 +360,14 @@ impl GdSerial {
                         0
                     }
                     Err(e) => {
+                        // On Windows, disconnected USB devices may return other error types
+                        // Check if the port still exists in the system
+                        if !self.port_still_available() {
+                            godot_error!("Device no longer available in system");
+                            self.mark_disconnected();
+                            return 0;
+                        }
+                        
                         godot_error!("Failed to get available bytes: {}", e);
                         0
                     }
@@ -347,6 +378,11 @@ impl GdSerial {
                 0
             }
         }
+    }
+    
+    #[func]
+    pub fn check_connection(&mut self) -> bool {
+        self.is_connection_alive()
     }
     
     #[func]

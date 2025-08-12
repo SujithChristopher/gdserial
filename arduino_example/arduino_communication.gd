@@ -28,12 +28,27 @@ func _ready():
 	else:
 		print("Failed to connect to Arduino on ", port_name)
 
+var last_check_time: float = 0.0
+
 func _process(_delta):
+	# Only check for data every 100ms to avoid spamming the port
+	var current_time = Time.get_time_dict_from_system()["unix"]
+	if current_time - last_check_time < 0.1:
+		return
+	last_check_time = current_time
+	
 	# Read any incoming data
-	if serial.is_open() and serial.bytes_available() > 0:
-		var data = serial.readline().strip_edges()
-		if data.length() > 0:
-			print("Arduino: ", data)
+	if serial.is_open():
+		# Check connection health periodically
+		if not serial.check_connection():
+			print("Arduino disconnected!")
+			return
+			
+		var available = serial.bytes_available()
+		if available > 0:
+			var data = serial.readline().strip_edges()
+			if data.length() > 0:
+				print("Arduino: ", data)
 
 func test_communication():
 	print("\n=== Testing Arduino Communication ===")
