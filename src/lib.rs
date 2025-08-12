@@ -278,17 +278,6 @@ impl GdSerial {
         }
     }
     
-    #[func]
-    pub fn read_string(&mut self, size: u32) -> GString {
-        let bytes = self.read(size);
-        match String::from_utf8(bytes.to_vec()) {
-            Ok(string) => GString::from(string),
-            Err(e) => {
-                godot_error!("Failed to convert bytes to string: {}", e);
-                GString::new()
-            }
-        }
-    }
     
     #[func]
     pub fn readline(&mut self) -> GString {
