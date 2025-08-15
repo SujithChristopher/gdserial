@@ -1,6 +1,7 @@
 use godot::prelude::*;
-use serialport::{SerialPort, SerialPortType};
+use serialport::{SerialPort, SerialPortType, DataBits, Parity, StopBits, FlowControl};
 use std::time::Duration;
+use std::io::{self, Read};
 
 /// Get device name for a USB device based on USB descriptors
 fn get_usb_device_name(_vid: u16, _pid: u16, _manufacturer: &Option<String>, product: &Option<String>) -> String {
@@ -85,39 +86,6 @@ impl GdSerial {
         ports_dict
     }
     
-    #[func]
-    pub fn get_port_device_name(&self, port_name: GString) -> GString {
-        let port_name_str = port_name.to_string();
-        
-        match serialport::available_ports() {
-            Ok(ports) => {
-                for port in ports {
-                    if port.port_name == port_name_str {
-                        let device_name = match &port.port_type {
-                            SerialPortType::UsbPort(usb_info) => {
-                                get_usb_device_name(
-                                    usb_info.vid, 
-                                    usb_info.pid, 
-                                    &usb_info.manufacturer, 
-                                    &usb_info.product
-                                )
-                            }
-                            SerialPortType::PciPort => "PCI Serial Port".to_string(),
-                            SerialPortType::BluetoothPort => "Bluetooth Serial Port".to_string(),
-                            SerialPortType::Unknown => "Unknown Serial Device".to_string(),
-                        };
-                        return GString::from(device_name);
-                    }
-                }
-                // Port not found, return the port name itself
-                port_name
-            }
-            Err(_) => {
-                // Error listing ports, return the port name itself
-                port_name
-            }
-        }
-    }
     
     #[func]
     pub fn set_port(&mut self, port_name: GString) {
@@ -143,11 +111,14 @@ impl GdSerial {
         
         match serialport::new(&self.port_name, self.baud_rate)
             .timeout(self.timeout)
+            .data_bits(DataBits::Eight)
+            .parity(Parity::None)
+            .stop_bits(StopBits::One)
+            .flow_control(FlowControl::None)
             .open()
         {
             Ok(port) => {
                 self.port = Some(port);
-                // Port opened successfully - removed print output per issue #1
                 true
             }
             Err(e) => {
@@ -256,7 +227,11 @@ impl GdSerial {
                 let mut byte = [0u8; 1];
                 
                 loop {
-                    match port.read_exact(&mut byte) {
+                    match port.read(&mut byte) {
+                        Ok(0) => {
+                            // No data available, return what we have so far
+                            break;
+                        }
                         Ok(_) => {
                             let ch = byte[0] as char;
                             if ch == '\n' {
@@ -264,6 +239,10 @@ impl GdSerial {
                             } else if ch != '\r' {
                                 line.push(ch);
                             }
+                        }
+                        Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
+                            // Timeout occurred, return what we have so far
+                            break;
                         }
                         Err(e) => {
                             if line.is_empty() {
