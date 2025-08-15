@@ -31,11 +31,6 @@ func _ready():
 var last_check_time: float = 0.0
 
 func _process(_delta):
-	# Only check for data every 100ms to avoid spamming the port
-	var current_time = Time.get_time_dict_from_system()["unix"]
-	if current_time - last_check_time < 0.1:
-		return
-	last_check_time = current_time
 	
 	# Read any incoming data
 	if serial.is_open():
