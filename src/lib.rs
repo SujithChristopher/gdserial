@@ -1,5 +1,5 @@
 use godot::prelude::*;
-use serialport::{SerialPort, SerialPortType, DataBits, Parity, StopBits, FlowControl};
+use serialport::{SerialPort, SerialPortType, DataBits, Parity, StopBits, FlowControl, ErrorKind};
 use std::time::Duration;
 use std::io::{self, Read};
 
@@ -46,6 +46,40 @@ impl IRefCounted for GdSerial {
 
 #[godot_api]
 impl GdSerial {
+    /// Check if the error indicates a disconnected device
+    fn is_disconnection_error(error: &serialport::Error) -> bool {
+        match error.kind() {
+            ErrorKind::NoDevice => true,
+            ErrorKind::Io(io_error) => {
+                matches!(io_error, 
+                    io::ErrorKind::BrokenPipe | 
+                    io::ErrorKind::ConnectionAborted |
+                    io::ErrorKind::NotConnected
+                )
+            }
+            _ => false
+        }
+    }
+    
+    /// Handle potential disconnection by closing the port if device is no longer available
+    fn handle_potential_disconnection(&mut self, error: &serialport::Error) {
+        if Self::is_disconnection_error(error) {
+            godot_print!("Device disconnected, closing port");
+            self.port = None;
+        }
+    }
+    
+    /// Handle potential disconnection for IO errors
+    fn handle_potential_io_disconnection(&mut self, error: &io::Error) {
+        if matches!(error.kind(), 
+            io::ErrorKind::BrokenPipe | 
+            io::ErrorKind::ConnectionAborted |
+            io::ErrorKind::NotConnected
+        ) {
+            godot_print!("Device disconnected, closing port");
+            self.port = None;
+        }
+    }
     #[func]
     pub fn list_ports(&self) -> Dictionary {
         let mut ports_dict = Dictionary::new();
@@ -138,7 +172,23 @@ impl GdSerial {
     
     #[func]
     pub fn is_open(&self) -> bool {
-        self.port.is_some()
+        self.port.is_some() && self.is_connected()
+    }
+    
+    #[func]
+    pub fn is_connected(&self) -> bool {
+        match &self.port {
+            Some(_) => {
+                // Check if the port is still available in the system
+                match serialport::available_ports() {
+                    Ok(ports) => {
+                        ports.iter().any(|p| p.port_name == self.port_name)
+                    }
+                    Err(_) => false
+                }
+            }
+            None => false
+        }
     }
     
     #[func]
@@ -151,12 +201,14 @@ impl GdSerial {
                         match port.flush() {
                             Ok(_) => true,
                             Err(e) => {
+                                self.handle_potential_io_disconnection(&e);
                                 godot_error!("Failed to flush port: {}", e);
                                 false
                             }
                         }
                     }
                     Err(e) => {
+                        self.handle_potential_io_disconnection(&e);
                         godot_error!("Failed to write to port: {}", e);
                         false
                     }
@@ -195,6 +247,7 @@ impl GdSerial {
                         PackedByteArray::from(&buffer[..])
                     }
                     Err(e) => {
+                        self.handle_potential_io_disconnection(&e);
                         godot_error!("Failed to read from port: {}", e);
                         PackedByteArray::new()
                     }
@@ -245,6 +298,8 @@ impl GdSerial {
                             break;
                         }
                         Err(e) => {
+                            self.handle_potential_io_disconnection(&e);
+                            
                             if line.is_empty() {
                                 godot_error!("Failed to read line: {}", e);
                                 return GString::new();
@@ -271,6 +326,7 @@ impl GdSerial {
                 match port.bytes_to_read() {
                     Ok(bytes) => bytes as u32,
                     Err(e) => {
+                        self.handle_potential_disconnection(&e);
                         godot_error!("Failed to get available bytes: {}", e);
                         0
                     }
@@ -287,6 +343,7 @@ impl GdSerial {
                 match port.clear(serialport::ClearBuffer::All) {
                     Ok(_) => true,
                     Err(e) => {
+                        self.handle_potential_disconnection(&e);
                         godot_error!("Failed to clear buffer: {}", e);
                         false
                     }
