@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GdSerial" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+		A PySerial-like serial communication library for Godot 4.
+	</brief_description>
+	<description>
+		GdSerial provides cross-platform serial communication functionality for Godot 4, enabling direct communication with serial devices such as Arduino, sensors, modems, and other hardware. The API is designed to be similar to Python's PySerial library, making it familiar and easy to use.
+
+		The library supports automatic disconnection detection, robust error handling, and cross-platform port enumeration with device identification.
+
+		Key features:
+		- PySerial-like API for familiar usage patterns
+		- Automatic device disconnection detection and cleanup
+		- Cross-platform support (Windows, Linux, macOS)
+		- USB device identification (VID/PID, manufacturer, product)
+		- Configurable baud rates, timeouts, and port settings
+		- Both binary and text-based communication
+		- Line-based reading with proper newline handling
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="bytes_available">
+			<return type="int" />
+			<description>
+				Returns the number of bytes available to read from the serial port buffer.
+
+				This method automatically tests the connection state and will mark the port as disconnected if the device is no longer available. If the port is not open or has been disconnected, returns 0.
+
+				This is useful for checking if data is available before calling [method read] or [method read_string] to avoid blocking operations.
+			</description>
+		</method>
+		<method name="clear_buffer">
+			<return type="bool" />
+			<description>
+				Clears all data from both the input and output serial port buffers.
+
+				Returns [code]true[/code] if the buffers were successfully cleared, [code]false[/code] otherwise. This method automatically tests the connection state and will handle disconnection if the device is no longer available.
+
+				Useful for ensuring a clean slate when starting communication or after an error condition.
+			</description>
+		</method>
+		<method name="close">
+			<return type="void" />
+			<description>
+				Closes the serial port connection and releases any associated resources.
+
+				After calling this method, [method is_open] will return [code]false[/code] and all read/write operations will fail until [method open] is called again.
+
+				It is safe to call this method multiple times or when the port is already closed.
+			</description>
+		</method>
+		<method name="is_open">
+			<return type="bool" />
+			<description>
+				Checks if the serial port is currently open and the device is still connected.
+
+				This method actively tests the connection by attempting a non-destructive operation on the port. If the device has been disconnected (e.g., USB device unplugged), this method will automatically close the port and return [code]false[/code].
+
+				Returns [code]true[/code] if the port is open and the device is still available, [code]false[/code] otherwise.
+			</description>
+		</method>
+		<method name="list_ports">
+			<return type="Dictionary" />
+			<description>
+				Returns a dictionary containing information about all available serial ports on the system.
+
+				Each entry in the dictionary has an integer key (port index) and a Dictionary value containing:
+				- [code]port_name[/code] (String): The system port name (e.g., "COM3", "/dev/ttyUSB0")
+				- [code]port_type[/code] (String): Type information including USB VID/PID for USB devices
+				- [code]device_name[/code] (String): Human-readable device name from USB descriptors
+
+				Example return value:
+				[codeblock]
+				{
+				  0: {
+				    "port_name": "COM3",
+				    "port_type": "USB - VID: 2341, PID: 0043", 
+				    "device_name": "Arduino Uno"
+				  }
+				}
+				[/codeblock]
+
+				This method is useful for presenting available ports to users and for automatic device discovery.
+			</description>
+		</method>
+		<method name="open">
+			<return type="bool" />
+			<description>
+				Opens a connection to the serial port with the current configuration.
+
+				Returns [code]true[/code] if the port was successfully opened, [code]false[/code] otherwise. The port configuration uses:
+				- 8 data bits
+				- No parity 
+				- 1 stop bit
+				- No flow control
+				- Baud rate set by [method set_baud_rate] (default: 9600)
+				- Timeout set by [method set_timeout] (default: 1000ms)
+
+				You must call [method set_port] with a valid port name before calling this method.
+			</description>
+		</method>
+		<method name="read">
+			<return type="PackedByteArray" />
+			<param index="0" name="size" type="int" />
+			<description>
+				Reads up to [param size] bytes from the serial port and returns them as a [PackedByteArray].
+
+				This method uses non-blocking reads and will return immediately with available data, even if less than [param size] bytes are available. If no data is available or an error occurs, returns an empty [PackedByteArray].
+
+				The method automatically handles disconnection detection - if the device is disconnected during the read operation, the port will be automatically closed.
+
+				Timeout behavior is controlled by [method set_timeout]. Read operations that exceed the timeout will return an empty array.
+			</description>
+		</method>
+		<method name="read_string">
+			<return type="String" />
+			<param index="0" name="size" type="int" />
+			<description>
+				Reads up to [param size] bytes from the serial port and converts them to a UTF-8 string.
+
+				This is a convenience method that calls [method read] and converts the result to a string. If the received bytes cannot be converted to valid UTF-8, an error is logged and an empty string is returned.
+
+				Returns an empty string if no data is available, an error occurs, or the conversion fails.
+			</description>
+		</method>
+		<method name="readline">
+			<return type="String" />
+			<description>
+				Reads a line of text from the serial port, stopping at the first newline character ('\n').
+
+				This method reads data byte-by-byte until a newline is encountered, the timeout is reached, or an error occurs. Carriage return characters ('\r') are automatically filtered out.
+
+				The newline character itself is not included in the returned string. If the timeout is reached before a complete line is received, the partial line data is returned.
+
+				Returns an empty string if no data is available, the port is not open, or an error occurs.
+
+				This method is particularly useful for line-based protocols and communicating with devices that send data terminated by newlines.
+			</description>
+		</method>
+		<method name="set_baud_rate">
+			<return type="void" />
+			<param index="0" name="baud_rate" type="int" />
+			<description>
+				Sets the baud rate (communication speed) for the serial port.
+
+				The baud rate determines how fast data is transmitted over the serial connection. Common values include 9600, 19200, 38400, 57600, 115200, etc.
+
+				This setting takes effect the next time [method open] is called. Changing the baud rate while the port is open will not affect the current connection.
+
+				Default value: 9600
+			</description>
+		</method>
+		<method name="set_port">
+			<return type="void" />
+			<param index="0" name="port_name" type="String" />
+			<description>
+				Sets the name of the serial port to connect to.
+
+				The port name format depends on the operating system:
+				- Windows: "COM1", "COM2", etc.
+				- Linux: "/dev/ttyUSB0", "/dev/ttyACM0", etc.
+				- macOS: "/dev/tty.usbserial-*", "/dev/tty.usbmodem*", etc.
+
+				Use [method list_ports] to discover available ports on the system.
+
+				This setting takes effect the next time [method open] is called.
+			</description>
+		</method>
+		<method name="set_timeout">
+			<return type="void" />
+			<param index="0" name="timeout_ms" type="int" />
+			<description>
+				Sets the timeout for read operations in milliseconds.
+
+				This timeout applies to all read operations ([method read], [method read_string], [method readline]). If a read operation cannot complete within this time, it will return with whatever data was available.
+
+				Setting a longer timeout allows more time for slow devices to respond, while shorter timeouts make operations more responsive but may truncate data from slow devices.
+
+				This setting takes effect the next time [method open] is called.
+
+				Default value: 1000 (1 second)
+			</description>
+		</method>
+		<method name="write">
+			<return type="bool" />
+			<param index="0" name="data" type="PackedByteArray" />
+			<description>
+				Writes binary data to the serial port.
+
+				Returns [code]true[/code] if all data was successfully written and flushed to the device, [code]false[/code] otherwise.
+
+				The method automatically tests the connection state before writing and handles disconnection detection. If the device is disconnected during the write operation, the port will be automatically closed.
+
+				All data is immediately flushed to ensure it's transmitted to the device.
+			</description>
+		</method>
+		<method name="write_string">
+			<return type="bool" />
+			<param index="0" name="data" type="String" />
+			<description>
+				Writes a string to the serial port.
+
+				This is a convenience method that converts the string to UTF-8 bytes and calls [method write].
+
+				Returns [code]true[/code] if the string was successfully written and flushed to the device, [code]false[/code] otherwise.
+			</description>
+		</method>
+		<method name="writeline">
+			<return type="bool" />
+			<param index="0" name="data" type="String" />
+			<description>
+				Writes a string followed by a newline character ('\n') to the serial port.
+
+				This is a convenience method for line-based protocols. It appends a newline character to the provided string and sends it to the device.
+
+				Returns [code]true[/code] if the string and newline were successfully written and flushed to the device, [code]false[/code] otherwise.
+
+				This method is useful for communicating with devices that expect line-terminated commands.
+			</description>
+		</method>
+	</methods>
+</class>

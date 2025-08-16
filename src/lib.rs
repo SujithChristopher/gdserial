@@ -29,6 +29,7 @@ pub struct GdSerial {
     port_name: String,
     baud_rate: u32,
     timeout: Duration,
+    is_connected: bool,  // Track connection state
 }
 
 #[godot_api]
@@ -40,6 +41,7 @@ impl IRefCounted for GdSerial {
             port_name: String::new(),
             baud_rate: 9600,
             timeout: Duration::from_millis(1000),
+            is_connected: false,
         }
     }
 }
@@ -51,14 +53,28 @@ impl GdSerial {
         match error.kind() {
             ErrorKind::NoDevice => true,
             ErrorKind::Io(io_error) => {
+                // Check for common disconnection errors
                 matches!(io_error, 
                     io::ErrorKind::BrokenPipe | 
                     io::ErrorKind::ConnectionAborted |
-                    io::ErrorKind::NotConnected
+                    io::ErrorKind::NotConnected |
+                    io::ErrorKind::UnexpectedEof |
+                    io::ErrorKind::PermissionDenied  // Can occur on disconnect
                 )
             }
             _ => false
         }
+    }
+    
+    /// Check if IO error indicates disconnection
+    fn is_io_disconnection_error(error: &io::Error) -> bool {
+        matches!(error.kind(), 
+            io::ErrorKind::BrokenPipe | 
+            io::ErrorKind::ConnectionAborted |
+            io::ErrorKind::NotConnected |
+            io::ErrorKind::UnexpectedEof |
+            io::ErrorKind::PermissionDenied
+        )
     }
     
     /// Handle potential disconnection by closing the port if device is no longer available
@@ -66,20 +82,38 @@ impl GdSerial {
         if Self::is_disconnection_error(error) {
             godot_print!("Device disconnected, closing port");
             self.port = None;
+            self.is_connected = false;
         }
     }
     
     /// Handle potential disconnection for IO errors
     fn handle_potential_io_disconnection(&mut self, error: &io::Error) {
-        if matches!(error.kind(), 
-            io::ErrorKind::BrokenPipe | 
-            io::ErrorKind::ConnectionAborted |
-            io::ErrorKind::NotConnected
-        ) {
-            godot_print!("Device disconnected, closing port");
+        if Self::is_io_disconnection_error(error) {
+            godot_print!("Device disconnected (IO error), closing port");
             self.port = None;
+            self.is_connected = false;
         }
     }
+    
+    /// Actively test if the port is still connected by attempting a non-destructive operation
+    fn test_connection(&mut self) -> bool {
+        if let Some(ref mut port) = self.port {
+            // Try bytes_to_read as the primary test - it's the most reliable
+            match port.bytes_to_read() {
+                Ok(_) => true,
+                Err(e) => {
+                    // Any error here likely means disconnection
+                    godot_print!("Connection test failed: {} - marking as disconnected", e);
+                    self.port = None;
+                    self.is_connected = false;
+                    false
+                }
+            }
+        } else {
+            false
+        }
+    }
+    
     #[func]
     pub fn list_ports(&self) -> Dictionary {
         let mut ports_dict = Dictionary::new();
@@ -120,7 +154,6 @@ impl GdSerial {
         ports_dict
     }
     
-    
     #[func]
     pub fn set_port(&mut self, port_name: GString) {
         self.port_name = port_name.to_string();
@@ -153,10 +186,12 @@ impl GdSerial {
         {
             Ok(port) => {
                 self.port = Some(port);
+                self.is_connected = true;
                 true
             }
             Err(e) => {
                 godot_error!("Failed to open port {}: {}", self.port_name, e);
+                self.is_connected = false;
                 false
             }
         }
@@ -166,33 +201,29 @@ impl GdSerial {
     pub fn close(&mut self) {
         if self.port.is_some() {
             self.port = None;
+            self.is_connected = false;
             // Port closed - removed print output per issue #1
         }
     }
     
     #[func]
-    pub fn is_open(&self) -> bool {
-        self.port.is_some() && self.is_connected()
-    }
-    
-    #[func]
-    pub fn is_connected(&self) -> bool {
-        match &self.port {
-            Some(_) => {
-                // Check if the port is still available in the system
-                match serialport::available_ports() {
-                    Ok(ports) => {
-                        ports.iter().any(|p| p.port_name == self.port_name)
-                    }
-                    Err(_) => false
-                }
-            }
-            None => false
+    pub fn is_open(&mut self) -> bool {
+        // Always test the actual connection state
+        if self.port.is_some() {
+            self.test_connection()
+        } else {
+            false
         }
     }
     
     #[func]
     pub fn write(&mut self, data: PackedByteArray) -> bool {
+        // First check if connected
+        if !self.test_connection() {
+            godot_error!("Port not connected");
+            return false;
+        }
+        
         match &mut self.port {
             Some(port) => {
                 let bytes = data.to_vec();
@@ -238,6 +269,11 @@ impl GdSerial {
     
     #[func]
     pub fn read(&mut self, size: u32) -> PackedByteArray {
+        // First check if connected
+        if !self.test_connection() {
+            return PackedByteArray::new();
+        }
+        
         match &mut self.port {
             Some(port) => {
                 let mut buffer = vec![0; size as usize];
@@ -247,8 +283,11 @@ impl GdSerial {
                         PackedByteArray::from(&buffer[..])
                     }
                     Err(e) => {
-                        self.handle_potential_io_disconnection(&e);
-                        godot_error!("Failed to read from port: {}", e);
+                        // Don't treat timeout as disconnection
+                        if e.kind() != io::ErrorKind::TimedOut && e.kind() != io::ErrorKind::WouldBlock {
+                            self.handle_potential_io_disconnection(&e);
+                            godot_error!("Failed to read from port: {}", e);
+                        }
                         PackedByteArray::new()
                     }
                 }
@@ -274,6 +313,11 @@ impl GdSerial {
     
     #[func]
     pub fn readline(&mut self) -> GString {
+        // First check if connected
+        if !self.test_connection() {
+            return GString::new();
+        }
+        
         match &mut self.port {
             Some(port) => {
                 let mut line = String::new();
@@ -298,9 +342,11 @@ impl GdSerial {
                             break;
                         }
                         Err(e) => {
-                            self.handle_potential_io_disconnection(&e);
+                            if Self::is_io_disconnection_error(&e) {
+                                self.handle_potential_io_disconnection(&e);
+                            }
                             
-                            if line.is_empty() {
+                            if line.is_empty() && e.kind() != io::ErrorKind::WouldBlock {
                                 godot_error!("Failed to read line: {}", e);
                                 return GString::new();
                             } else {
@@ -321,13 +367,21 @@ impl GdSerial {
     
     #[func]
     pub fn bytes_available(&mut self) -> u32 {
+        // First check if connected
+        if !self.test_connection() {
+            return 0;
+        }
+        
         match &mut self.port {
             Some(port) => {
                 match port.bytes_to_read() {
                     Ok(bytes) => bytes as u32,
                     Err(e) => {
-                        self.handle_potential_disconnection(&e);
-                        godot_error!("Failed to get available bytes: {}", e);
+                        // Any error in bytes_to_read likely means the port is in a bad state
+                        // Mark as disconnected regardless of error type
+                        godot_error!("Failed to get available bytes: {} - marking port as disconnected", e);
+                        self.port = None;
+                        self.is_connected = false;
                         0
                     }
                 }
@@ -338,6 +392,11 @@ impl GdSerial {
     
     #[func]
     pub fn clear_buffer(&mut self) -> bool {
+        // First check if connected
+        if !self.test_connection() {
+            return false;
+        }
+        
         match &mut self.port {
             Some(port) => {
                 match port.clear(serialport::ClearBuffer::All) {
