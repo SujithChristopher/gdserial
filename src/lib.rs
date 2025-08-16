@@ -3,17 +3,31 @@ use serialport::{SerialPort, SerialPortType, DataBits, Parity, StopBits, FlowCon
 use std::time::Duration;
 use std::io::{self, Read};
 
-/// Get device name for a USB device based on USB descriptors
-fn get_usb_device_name(_vid: u16, _pid: u16, _manufacturer: &Option<String>, product: &Option<String>) -> String {
-    // Use the product string from USB descriptor if available
-    if let Some(product) = product {
-        if !product.trim().is_empty() {
-            return product.clone();
+fn get_usb_device_name(vid: u16, pid: u16, manufacturer: &Option<String>, product: &Option<String>) -> String {
+    // Build device name from available USB descriptor information
+    let mut parts = Vec::new();
+    
+    // Add manufacturer if available
+    if let Some(mfg) = manufacturer {
+        if !mfg.trim().is_empty() {
+            parts.push(mfg.trim().to_string());
         }
     }
     
-    // Simple fallback for devices without product descriptor
-    "USB Serial Device".to_string()
+    // Add product if available
+    if let Some(prod) = product {
+        if !prod.trim().is_empty() {
+            parts.push(prod.trim().to_string());
+        }
+    }
+    
+    // If we have any descriptor strings, use them
+    if !parts.is_empty() {
+        return parts.join(" ");
+    }
+    
+    // Otherwise, show VID/PID for identification
+    format!("USB Serial (VID: 0x{:04X}, PID: 0x{:04X})", vid, pid)
 }
 
 struct GdSerialExtension;
