@@ -13,3 +13,6 @@ macos.debug.x86_64 =     "res://addons/gdserial/bin/macos-x86_64/libgdserial.dyl
 macos.release.x86_64 =   "res://addons/gdserial/bin/macos-x86_64/libgdserial.dylib"
 macos.debug.arm64 =      "res://addons/gdserial/bin/macos-arm64/libgdserial.dylib"
 macos.release.arm64 =    "res://addons/gdserial/bin/macos-arm64/libgdserial.dylib"
+
+[documentation]
+en = "res://addons/gdserial/doc/en/"
