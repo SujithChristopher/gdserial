@@ -32,6 +32,7 @@ Thumbs.db
 # *.dylib
 # *.tmp
 CLAUDE.md
+create_release.md
 
 
 # Godot 4+ specific ignores
