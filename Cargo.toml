@@ -13,5 +13,6 @@ authors = ["Sujith Christopher"]
 crate-type = ["cdylib"]
 
 [dependencies]
-godot = { git = "https://github.com/godot-rust/gdext", branch = "master" }
+# Pin to specific commit for reproducible builds instead of moving "master" branch
+godot = { git = "https://github.com/godot-rust/gdext", rev = "c6be825f" }
 serialport = "4.8.1"
