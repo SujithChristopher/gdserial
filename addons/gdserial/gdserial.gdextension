@@ -7,6 +7,8 @@ compatibility_minimum = 4.2
 
 linux.debug.x86_64 =     "res://addons/gdserial/bin/linux-x86_64/libgdserial.so"
 linux.release.x86_64 =   "res://addons/gdserial/bin/linux-x86_64/libgdserial.so"
+linux.debug.arm64 =      "res://addons/gdserial/bin/linux-arm64/libgdserial.so"
+linux.release.arm64 =    "res://addons/gdserial/bin/linux-arm64/libgdserial.so"
 windows.debug.x86_64 =   "res://addons/gdserial/bin/windows-x86_64/gdserial.dll"
 windows.release.x86_64 = "res://addons/gdserial/bin/windows-x86_64/gdserial.dll"
 macos.debug.x86_64 =     "res://addons/gdserial/bin/macos-x86_64/libgdserial.dylib"
