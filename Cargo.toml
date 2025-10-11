@@ -14,5 +14,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # Pin to specific commit for reproducible builds instead of moving "master" branch
-godot = { git = "https://github.com/godot-rust/gdext", rev = "c6be825f" }
+godot = "0.4.0"
 serialport = "4.8.1"
