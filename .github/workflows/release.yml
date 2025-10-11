@@ -31,11 +31,11 @@ jobs:
             target: aarch64-unknown-linux-gnu
             lib_name: libgdserial.so
             use_cross: true
-          - os: macos-latest
+          - os: macos-13
             target: x86_64-apple-darwin
             lib_name: libgdserial.dylib
             use_cross: false
-          - os: macos-latest
+          - os: macos-15
             target: aarch64-apple-darwin
             lib_name: libgdserial.dylib
             use_cross: false

@@ -32,11 +32,11 @@ jobs:
             platform: Linux ARM64
             lib_name: libgdserial.so
             use_cross: true
-          - os: macos-latest
+          - os: macos-13
             target: x86_64-apple-darwin
             platform: macOS Intel
             lib_name: libgdserial.dylib
-          - os: macos-latest
+          - os: macos-15
             target: aarch64-apple-darwin
             platform: macOS Apple Silicon
             lib_name: libgdserial.dylib
