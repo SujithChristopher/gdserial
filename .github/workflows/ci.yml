@@ -61,6 +61,11 @@ jobs:
       run: cargo install cross --git https://github.com/cross-rs/cross
       shell: bash
 
+    - name: Clean cargo cache for cross-compilation
+      if: matrix.use_cross == true
+      run: cargo clean
+      shell: bash
+
     - name: Build release (native)
       if: matrix.use_cross == false
       run: cargo build --release --target ${{ matrix.target }}
