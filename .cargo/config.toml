@@ -1,17 +1,17 @@
 # Cargo configuration for optimized builds
-# These settings optimize for binary size and performance in release mode
+# These settings balance binary size optimization with reasonable build times
 
 [profile.release]
 # Optimize for size rather than speed (important for game engine plugins)
 opt-level = "z"
 
-# Enable Link-Time Optimization for better dead code elimination
-# This can reduce binary size by 20-40%
-lto = true
+# Use thin LTO for good optimization with faster build times (2-3x faster than full LTO)
+# thin = faster than full LTO, still provides most benefits
+lto = "thin"
 
-# Use a single codegen unit for better optimization
-# More units = faster compilation, fewer units = better optimization
-codegen-units = 1
+# Allow some parallelization for faster builds (4-6x faster than codegen-units=1)
+# 4 units is a good balance between optimization and build time
+codegen-units = 4
 
 # Strip debug symbols from the binary
 strip = true
