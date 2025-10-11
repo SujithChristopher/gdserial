@@ -150,8 +150,8 @@ impl GdSerial {
                         SerialPortType::Unknown => ("Unknown".to_string(), "Unknown Serial Device".to_string()),
                     };
                     
-                    port_info.set(GString::from("port_type"), GString::from(port_type));
-                    port_info.set(GString::from("device_name"), GString::from(device_name));
+                    port_info.set(GString::from("port_type"), GString::from(&port_type));
+                    port_info.set(GString::from("device_name"), GString::from(&device_name));
                     ports_dict.set(i as i32, port_info);
                 }
             }
@@ -309,7 +309,7 @@ impl GdSerial {
     pub fn read_string(&mut self, size: u32) -> GString {
         let bytes = self.read(size);
         match String::from_utf8(bytes.to_vec()) {
-            Ok(string) => GString::from(string),
+            Ok(string) => GString::from(&string),
             Err(e) => {
                 godot_error!("Failed to convert bytes to string: {}", e);
                 GString::new()
@@ -364,14 +364,14 @@ impl GdSerial {
                 buffer_pos += 1;
 
                 if ch == '\n' {
-                    return GString::from(line);
+                    return GString::from(&line);
                 } else if ch != '\r' {
                     line.push(ch);
                 }
             }
         }
 
-        GString::from(line)
+        GString::from(&line)
     }
     
     #[func]
