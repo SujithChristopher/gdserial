@@ -104,25 +104,7 @@ impl GdSerial {
             self.port = None;
         }
     }
-    
-    /// Actively test if the port is still connected by attempting a non-destructive operation
-    fn test_connection(&mut self) -> bool {
-        if let Some(ref mut port) = self.port {
-            // Try bytes_to_read as the primary test - it's the most reliable
-            match port.bytes_to_read() {
-                Ok(_) => true,
-                Err(e) => {
-                    // Any error here likely means disconnection
-                    godot_print!("Connection test failed: {} - marking as disconnected", e);
-                    self.port = None;
-                    false
-                }
-            }
-        } else {
-            false
-        }
-    }
-    
+
     #[func]
     pub fn list_ports(&self) -> Dictionary {
         let mut ports_dict = Dictionary::new();
@@ -218,41 +200,36 @@ impl GdSerial {
 
     #[func]
     #[inline]
-    pub fn is_open(&mut self) -> bool {
-        // Always test the actual connection state
-        if self.port.is_some() {
-            self.test_connection()
-        } else {
-            false
-        }
+    pub fn is_open(&self) -> bool {
+        // Simply check if port exists - don't make extra system calls
+        self.port.is_some()
     }
     
     #[func]
     pub fn write(&mut self, data: PackedByteArray) -> bool {
-        // test_connection() already checks if port is Some and returns false if not
-        if !self.test_connection() {
-            godot_error!("Port not connected");
-            return false;
-        }
-
-        // Safe to unwrap because test_connection() returned true
-        let port = self.port.as_mut().unwrap();
-        let bytes = data.to_vec();
-
-        match port.write_all(&bytes) {
-            Ok(_) => {
-                match port.flush() {
-                    Ok(_) => true,
+        match &mut self.port {
+            Some(port) => {
+                let bytes = data.to_vec();
+                match port.write_all(&bytes) {
+                    Ok(_) => {
+                        match port.flush() {
+                            Ok(_) => true,
+                            Err(e) => {
+                                self.handle_potential_io_disconnection(&e);
+                                godot_error!("Failed to flush port: {}", e);
+                                false
+                            }
+                        }
+                    }
                     Err(e) => {
                         self.handle_potential_io_disconnection(&e);
-                        godot_error!("Failed to flush port: {}", e);
+                        godot_error!("Failed to write to port: {}", e);
                         false
                     }
                 }
             }
-            Err(e) => {
-                self.handle_potential_io_disconnection(&e);
-                godot_error!("Failed to write to port: {}", e);
+            None => {
+                godot_error!("Port not open");
                 false
             }
         }
@@ -279,26 +256,26 @@ impl GdSerial {
     
     #[func]
     pub fn read(&mut self, size: u32) -> PackedByteArray {
-        // test_connection() already checks if port is Some and returns false if not
-        if !self.test_connection() {
-            return PackedByteArray::new();
-        }
-
-        // Safe to unwrap because test_connection() returned true
-        let port = self.port.as_mut().unwrap();
-        let mut buffer = vec![0; size as usize];
-
-        match port.read(&mut buffer) {
-            Ok(bytes_read) => {
-                buffer.truncate(bytes_read);
-                PackedByteArray::from(&buffer[..])
-            }
-            Err(e) => {
-                // Don't treat timeout as disconnection
-                if e.kind() != io::ErrorKind::TimedOut && e.kind() != io::ErrorKind::WouldBlock {
-                    self.handle_potential_io_disconnection(&e);
-                    godot_error!("Failed to read from port: {}", e);
+        match &mut self.port {
+            Some(port) => {
+                let mut buffer = vec![0; size as usize];
+                match port.read(&mut buffer) {
+                    Ok(bytes_read) => {
+                        buffer.truncate(bytes_read);
+                        PackedByteArray::from(&buffer[..])
+                    }
+                    Err(e) => {
+                        // Don't treat timeout as disconnection
+                        if e.kind() != io::ErrorKind::TimedOut && e.kind() != io::ErrorKind::WouldBlock {
+                            self.handle_potential_io_disconnection(&e);
+                            godot_error!("Failed to read from port: {}", e);
+                        }
+                        PackedByteArray::new()
+                    }
                 }
+            }
+            None => {
+                godot_error!("Port not open");
                 PackedByteArray::new()
             }
         }
@@ -319,59 +296,59 @@ impl GdSerial {
     
     #[func]
     pub fn readline(&mut self) -> GString {
-        // test_connection() already checks if port is Some and returns false if not
-        if !self.test_connection() {
-            return GString::new();
-        }
+        match &mut self.port {
+            Some(port) => {
+                // Use a buffer for more efficient reading (reduces system calls significantly)
+                let mut line = String::with_capacity(READLINE_INITIAL_CAPACITY);
+                let mut buffer = [0u8; READLINE_BUFFER_SIZE];
+                let mut buffer_pos = 0;
+                let mut buffer_len = 0;
 
-        // Safe to unwrap because test_connection() returned true
-        let port = self.port.as_mut().unwrap();
+                loop {
+                    // Refill buffer if empty
+                    if buffer_pos >= buffer_len {
+                        match port.read(&mut buffer) {
+                            Ok(0) => break, // No more data
+                            Ok(n) => {
+                                buffer_len = n;
+                                buffer_pos = 0;
+                            }
+                            Err(ref e) if e.kind() == io::ErrorKind::TimedOut => break,
+                            Err(e) => {
+                                if Self::is_disconnection_io_kind(e.kind()) {
+                                    self.handle_potential_io_disconnection(&e);
+                                }
 
-        // Use a buffer for more efficient reading (reduces system calls significantly)
-        let mut line = String::with_capacity(READLINE_INITIAL_CAPACITY);
-        let mut buffer = [0u8; READLINE_BUFFER_SIZE];
-        let mut buffer_pos = 0;
-        let mut buffer_len = 0;
-
-        loop {
-            // Refill buffer if empty
-            if buffer_pos >= buffer_len {
-                match port.read(&mut buffer) {
-                    Ok(0) => break, // No more data
-                    Ok(n) => {
-                        buffer_len = n;
-                        buffer_pos = 0;
-                    }
-                    Err(ref e) if e.kind() == io::ErrorKind::TimedOut => break,
-                    Err(e) => {
-                        if Self::is_disconnection_io_kind(e.kind()) {
-                            self.handle_potential_io_disconnection(&e);
+                                if line.is_empty() && e.kind() != io::ErrorKind::WouldBlock {
+                                    godot_error!("Failed to read line: {}", e);
+                                    return GString::new();
+                                } else {
+                                    break;
+                                }
+                            }
                         }
+                    }
 
-                        if line.is_empty() && e.kind() != io::ErrorKind::WouldBlock {
-                            godot_error!("Failed to read line: {}", e);
-                            return GString::new();
-                        } else {
-                            break;
+                    // Process buffered data
+                    while buffer_pos < buffer_len {
+                        let ch = buffer[buffer_pos] as char;
+                        buffer_pos += 1;
+
+                        if ch == '\n' {
+                            return GString::from(&line);
+                        } else if ch != '\r' {
+                            line.push(ch);
                         }
                     }
                 }
+
+                GString::from(&line)
             }
-
-            // Process buffered data
-            while buffer_pos < buffer_len {
-                let ch = buffer[buffer_pos] as char;
-                buffer_pos += 1;
-
-                if ch == '\n' {
-                    return GString::from(&line);
-                } else if ch != '\r' {
-                    line.push(ch);
-                }
+            None => {
+                godot_error!("Port not open");
+                GString::new()
             }
         }
-
-        GString::from(&line)
     }
     
     #[func]
@@ -398,19 +375,19 @@ impl GdSerial {
     
     #[func]
     pub fn clear_buffer(&mut self) -> bool {
-        // test_connection() already checks if port is Some and returns false if not
-        if !self.test_connection() {
-            return false;
-        }
-
-        // Safe to unwrap because test_connection() returned true
-        let port = self.port.as_mut().unwrap();
-
-        match port.clear(serialport::ClearBuffer::All) {
-            Ok(_) => true,
-            Err(e) => {
-                self.handle_potential_disconnection(&e);
-                godot_error!("Failed to clear buffer: {}", e);
+        match &mut self.port {
+            Some(port) => {
+                match port.clear(serialport::ClearBuffer::All) {
+                    Ok(_) => true,
+                    Err(e) => {
+                        self.handle_potential_disconnection(&e);
+                        godot_error!("Failed to clear buffer: {}", e);
+                        false
+                    }
+                }
+            }
+            None => {
+                godot_error!("Port not open");
                 false
             }
         }

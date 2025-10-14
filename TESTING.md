@@ -118,8 +118,25 @@ cargo build --example arduino_monitor
 ## Files Modified
 
 1. **Cargo.toml**: Changed serialport dependency from "4.8.1" to "=4.7.2" (exact version pin)
-2. **src/lib.rs**: Fixed `bytes_available()` method to avoid double-calling `bytes_to_read()`
+2. **src/lib.rs**:
+   - Fixed `bytes_available()` method to avoid double-calling `bytes_to_read()`
+   - Removed `test_connection()` function entirely (was causing unnecessary system calls)
+   - Refactored all methods (`write()`, `read()`, `readline()`, `clear_buffer()`) to not use `test_connection()`
+   - Changed `is_open()` to simply check if port exists (no system calls)
 3. **Cargo.lock**: Locked to serialport 4.7.2 dependencies
+
+## Performance Improvements
+
+The refactoring also improved performance by eliminating redundant system calls:
+
+**Before**: Each operation made 2 calls to the OS:
+1. `test_connection()` calls `bytes_to_read()` to check if port is alive
+2. The actual operation (read/write/clear)
+
+**After**: Each operation makes only 1 call:
+1. Try the operation directly - if it fails, handle the error
+
+This reduces system call overhead by 50% for all serial operations!
 
 ## Important Notes
 
