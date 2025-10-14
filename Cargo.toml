@@ -15,4 +15,5 @@ crate-type = ["cdylib"]
 [dependencies]
 # Pin to specific commit for reproducible builds instead of moving "master" branch
 godot = "0.4.0"
-serialport = "4.8.1"
+# Pin to exact version 4.7.2 because 4.8.x has bugs with bytes_to_read() on Windows
+serialport = "=4.7.2"

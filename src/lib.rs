@@ -376,23 +376,23 @@ impl GdSerial {
     
     #[func]
     pub fn bytes_available(&mut self) -> u32 {
-        // test_connection() already checks if port is Some and returns false if not
-        if !self.test_connection() {
-            return 0;
-        }
-
-        // Safe to unwrap because test_connection() returned true
-        let port = self.port.as_mut().unwrap();
-
-        match port.bytes_to_read() {
-            Ok(bytes) => bytes as u32,
-            Err(e) => {
-                // Any error in bytes_to_read likely means the port is in a bad state
-                // Mark as disconnected regardless of error type
-                godot_error!("Failed to get available bytes: {} - marking port as disconnected", e);
-                self.port = None;
-                0
+        // Don't call test_connection() here to avoid double-calling bytes_to_read()
+        // Direct call is sufficient - bytes_to_read() itself tells us if port is working
+        match &mut self.port {
+            Some(port) => {
+                match port.bytes_to_read() {
+                    Ok(bytes) => bytes as u32,
+                    Err(e) => {
+                        // Only mark as disconnected for actual disconnection errors
+                        if Self::is_disconnection_error(&e) {
+                            godot_error!("Failed to get available bytes: {} - marking port as disconnected", e);
+                            self.port = None;
+                        }
+                        0
+                    }
+                }
             }
+            None => 0
         }
     }
     
