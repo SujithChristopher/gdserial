@@ -11,7 +11,7 @@ lto = "thin"
 
 # Allow some parallelization for faster builds (4-6x faster than codegen-units=1)
 # 4 units is a good balance between optimization and build time
-codegen-units = 4
+# codegen-units = 4
 
 # Strip debug symbols from the binary
 strip = true
