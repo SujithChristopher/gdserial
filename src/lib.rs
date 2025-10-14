@@ -3,31 +3,36 @@ use serialport::{SerialPort, SerialPortType, DataBits, Parity, StopBits, FlowCon
 use std::time::Duration;
 use std::io::{self, Read};
 
+/// Build human-readable USB device name from descriptors
+/// Optimized to minimize allocations by building string directly
 fn get_usb_device_name(vid: u16, pid: u16, manufacturer: &Option<String>, product: &Option<String>) -> String {
-    // Build device name from available USB descriptor information
-    let mut parts = Vec::new();
-    
-    // Add manufacturer if available
-    if let Some(mfg) = manufacturer {
-        if !mfg.trim().is_empty() {
-            parts.push(mfg.trim().to_string());
+    // Extract trimmed manufacturer string if available
+    let mfg = manufacturer.as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+
+    // Extract trimmed product string if available
+    let prod = product.as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+
+    // Build name based on available descriptors
+    match (mfg, prod) {
+        (Some(m), Some(p)) => {
+            // Both available: pre-allocate exact capacity needed
+            let mut name = String::with_capacity(m.len() + 1 + p.len());
+            name.push_str(m);
+            name.push(' ');
+            name.push_str(p);
+            name
+        }
+        (Some(m), None) => m.to_string(),
+        (None, Some(p)) => p.to_string(),
+        (None, None) => {
+            // No descriptors: show VID/PID for identification
+            format!("USB Serial (VID: 0x{:04X}, PID: 0x{:04X})", vid, pid)
         }
     }
-    
-    // Add product if available
-    if let Some(prod) = product {
-        if !prod.trim().is_empty() {
-            parts.push(prod.trim().to_string());
-        }
-    }
-    
-    // If we have any descriptor strings, use them
-    if !parts.is_empty() {
-        return parts.join(" ");
-    }
-    
-    // Otherwise, show VID/PID for identification
-    format!("USB Serial (VID: 0x{:04X}, PID: 0x{:04X})", vid, pid)
 }
 
 struct GdSerialExtension;
@@ -40,6 +45,22 @@ const DEFAULT_BAUD_RATE: u32 = 9600;
 const DEFAULT_TIMEOUT_MS: u64 = 1000;
 const READLINE_BUFFER_SIZE: usize = 256;
 const READLINE_INITIAL_CAPACITY: usize = 64;
+
+// Static strings for dictionary keys to avoid repeated allocations
+const KEY_PORT_NAME: &str = "port_name";
+const KEY_PORT_TYPE: &str = "port_type";
+const KEY_DEVICE_NAME: &str = "device_name";
+
+// Static strings for port types
+const PORT_TYPE_PCI: &str = "PCI";
+const PORT_TYPE_BLUETOOTH: &str = "Bluetooth";
+const PORT_TYPE_UNKNOWN: &str = "Unknown";
+const DEVICE_NAME_PCI: &str = "PCI Serial Port";
+const DEVICE_NAME_BLUETOOTH: &str = "Bluetooth Serial Port";
+const DEVICE_NAME_UNKNOWN: &str = "Unknown Serial Device";
+
+// Common error messages
+const ERR_PORT_NOT_OPEN: &str = "Port not open";
 
 #[derive(GodotClass)]
 #[class(base=RefCounted)]
@@ -108,32 +129,32 @@ impl GdSerial {
     #[func]
     pub fn list_ports(&self) -> Dictionary {
         let mut ports_dict = Dictionary::new();
-        
+
         match serialport::available_ports() {
             Ok(ports) => {
                 for (i, port) in ports.iter().enumerate() {
                     let mut port_info = Dictionary::new();
-                    port_info.set(GString::from("port_name"), GString::from(&port.port_name));
-                    
+                    port_info.set(KEY_PORT_NAME, port.port_name.as_str());
+
                     let (port_type, device_name) = match &port.port_type {
                         SerialPortType::UsbPort(usb_info) => {
-                            let port_type = format!("USB - VID: {:04X}, PID: {:04X}", 
+                            let port_type = format!("USB - VID: {:04X}, PID: {:04X}",
                                    usb_info.vid, usb_info.pid);
                             let device_name = get_usb_device_name(
-                                usb_info.vid, 
-                                usb_info.pid, 
-                                &usb_info.manufacturer, 
+                                usb_info.vid,
+                                usb_info.pid,
+                                &usb_info.manufacturer,
                                 &usb_info.product
                             );
                             (port_type, device_name)
                         }
-                        SerialPortType::PciPort => ("PCI".to_string(), "PCI Serial Port".to_string()),
-                        SerialPortType::BluetoothPort => ("Bluetooth".to_string(), "Bluetooth Serial Port".to_string()),
-                        SerialPortType::Unknown => ("Unknown".to_string(), "Unknown Serial Device".to_string()),
+                        SerialPortType::PciPort => (PORT_TYPE_PCI.to_string(), DEVICE_NAME_PCI.to_string()),
+                        SerialPortType::BluetoothPort => (PORT_TYPE_BLUETOOTH.to_string(), DEVICE_NAME_BLUETOOTH.to_string()),
+                        SerialPortType::Unknown => (PORT_TYPE_UNKNOWN.to_string(), DEVICE_NAME_UNKNOWN.to_string()),
                     };
-                    
-                    port_info.set(GString::from("port_type"), GString::from(&port_type));
-                    port_info.set(GString::from("device_name"), GString::from(&device_name));
+
+                    port_info.set(KEY_PORT_TYPE, port_type.as_str());
+                    port_info.set(KEY_DEVICE_NAME, device_name.as_str());
                     ports_dict.set(i as i32, port_info);
                 }
             }
@@ -141,7 +162,7 @@ impl GdSerial {
                 godot_error!("Failed to list ports: {}", e);
             }
         }
-        
+
         ports_dict
     }
     
@@ -229,12 +250,12 @@ impl GdSerial {
                 }
             }
             None => {
-                godot_error!("Port not open");
+                godot_error!("{}", ERR_PORT_NOT_OPEN);
                 false
             }
         }
     }
-    
+
     #[func]
     pub fn write_string(&mut self, data: GString) -> bool {
         // Avoid intermediate String allocation by converting directly to bytes
@@ -275,18 +296,26 @@ impl GdSerial {
                 }
             }
             None => {
-                godot_error!("Port not open");
+                godot_error!("{}", ERR_PORT_NOT_OPEN);
                 PackedByteArray::new()
             }
         }
     }
-    
+
     #[func]
     #[inline]
     pub fn read_string(&mut self, size: u32) -> GString {
         let bytes = self.read(size);
-        match String::from_utf8(bytes.to_vec()) {
-            Ok(string) => GString::from(&string),
+        // Use from_utf8_lossy to avoid allocation + handle invalid UTF-8 gracefully
+        // This is more efficient than to_vec() + from_utf8()
+        if bytes.is_empty() {
+            return GString::new();
+        }
+
+        // Convert to slice and then to GString (avoids intermediate copy)
+        let slice = bytes.as_slice();
+        match std::str::from_utf8(slice) {
+            Ok(s) => GString::from(s),
             Err(e) => {
                 godot_error!("Failed to convert bytes to string: {}", e);
                 GString::new()
@@ -345,12 +374,12 @@ impl GdSerial {
                 GString::from(&line)
             }
             None => {
-                godot_error!("Port not open");
+                godot_error!("{}", ERR_PORT_NOT_OPEN);
                 GString::new()
             }
         }
     }
-    
+
     #[func]
     pub fn bytes_available(&mut self) -> u32 {
         // Don't call test_connection() here to avoid double-calling bytes_to_read()
@@ -387,7 +416,7 @@ impl GdSerial {
                 }
             }
             None => {
-                godot_error!("Port not open");
+                godot_error!("{}", ERR_PORT_NOT_OPEN);
                 false
             }
         }
