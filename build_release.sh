@@ -37,7 +37,3 @@ esac
 
 echo "Build complete! Library files copied to addons/gdserial/bin/"
 echo ""
-echo "To publish to Godot Asset Library:"
-echo "1. Test the addon in a Godot project"
-echo "2. Create a release on GitHub with the addons/ folder"  
-echo "3. Submit to Godot Asset Library with the release URL"
