@@ -42,6 +42,10 @@ pub struct GdSerial {
     port: Option<Box<dyn SerialPort>>,
     port_name: String,
     baud_rate: u32,
+    data_bits: DataBits,
+    parity: Parity,
+    stop_bits: StopBits,
+    flow_control: FlowControl,
     timeout: Duration,
     is_connected: bool,  // Track connection state
 }
@@ -54,6 +58,10 @@ impl IRefCounted for GdSerial {
             port: None,
             port_name: String::new(),
             baud_rate: 9600,
+            data_bits: DataBits::Eight,
+            stop_bits: StopBits::One,
+            flow_control: FlowControl::None,
+            parity: Parity::None,
             timeout: Duration::from_millis(1000),
             is_connected: false,
         }
@@ -177,6 +185,69 @@ impl GdSerial {
     pub fn set_baud_rate(&mut self, baud_rate: u32) {
         self.baud_rate = baud_rate;
     }
+
+    #[func]
+    pub fn set_data_bits(&mut self, data_bits: u8) {
+        match data_bits {
+            6 => {
+                self.data_bits = DataBits::Six;
+            },
+            7 => {
+                self.data_bits = DataBits::Seven;
+            },
+            8 => {
+                self.data_bits = DataBits::Eight;
+            },
+            _ => {
+                godot_error!("Data bits must be between 6 and 8")
+            }
+        }
+    }
+
+    #[func]
+    pub fn set_parity(&mut self, parity: bool) {
+        match parity {
+            false => {
+                self.parity = Parity::None;
+            },
+            true => {
+                self.parity = Parity::Odd;
+            }
+        }
+    }
+
+    #[func]
+    pub fn set_stop_bits(&mut self, stop_bits: u8) {
+        match stop_bits {
+            1 => {
+                self.stop_bits = StopBits::One;
+            },
+            2 => {
+                self.stop_bits = StopBits::Two;
+            },
+            _ => {
+                godot_error!("Stop bits must be between 1 and 2")
+            }
+        }
+    }
+
+    #[func]
+    pub fn set_flow_control(&mut self, flow_control: u8) {
+        match flow_control {
+            0 => {
+                self.flow_control = FlowControl::None;
+            },
+            1 => {
+                self.flow_control = FlowControl::Software;
+            },
+            2 => {
+                self.flow_control = FlowControl::Hardware;
+            },
+            _ => {
+                godot_error!("Data bits must be between 0 and 2")
+            }
+        }
+    }
     
     #[func]
     pub fn set_timeout(&mut self, timeout_ms: u32) {
@@ -192,10 +263,10 @@ impl GdSerial {
         
         match serialport::new(&self.port_name, self.baud_rate)
             .timeout(self.timeout)
-            .data_bits(DataBits::Eight)
-            .parity(Parity::None)
-            .stop_bits(StopBits::One)
-            .flow_control(FlowControl::None)
+            .data_bits(self.data_bits)
+            .parity(self.parity)
+            .stop_bits(self.stop_bits)
+            .flow_control(self.flow_control)
             .open()
         {
             Ok(port) => {
@@ -429,3 +500,4 @@ impl GdSerial {
         }
     }
 }
+
