@@ -43,8 +43,8 @@ pub struct GdSerial {
     port_name: String,
     baud_rate: u32,
     data_bits: DataBits,
-    parity: Parity,
     stop_bits: StopBits,
+    parity: Parity,
     flow_control: FlowControl,
     timeout: Duration,
     is_connected: bool,  // Track connection state
