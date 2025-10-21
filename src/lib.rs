@@ -1,7 +1,80 @@
 use godot::prelude::*;
-use serialport::{SerialPort, SerialPortType, DataBits, Parity, StopBits, FlowControl, ErrorKind};
+use serialport::{SerialPort, SerialPortType, ErrorKind};
 use std::time::Duration;
 use std::io::{self, Read};
+
+// Godot-exportable enums for serial port configuration
+#[derive(GodotConvert, Var, Export, Copy, Clone, Debug, PartialEq)]
+#[godot(via = i32)]
+pub enum GdDataBits {
+    Five = 5,
+    Six = 6,
+    Seven = 7,
+    Eight = 8,
+}
+
+impl GdDataBits {
+    fn to_serialport(self) -> serialport::DataBits {
+        match self {
+            GdDataBits::Five => serialport::DataBits::Five,
+            GdDataBits::Six => serialport::DataBits::Six,
+            GdDataBits::Seven => serialport::DataBits::Seven,
+            GdDataBits::Eight => serialport::DataBits::Eight,
+        }
+    }
+}
+
+#[derive(GodotConvert, Var, Export, Copy, Clone, Debug, PartialEq)]
+#[godot(via = i32)]
+pub enum GdParity {
+    None = 0,
+    Odd = 1,
+    Even = 2,
+}
+
+impl GdParity {
+    fn to_serialport(self) -> serialport::Parity {
+        match self {
+            GdParity::None => serialport::Parity::None,
+            GdParity::Odd => serialport::Parity::Odd,
+            GdParity::Even => serialport::Parity::Even,
+        }
+    }
+}
+
+#[derive(GodotConvert, Var, Export, Copy, Clone, Debug, PartialEq)]
+#[godot(via = i32)]
+pub enum GdStopBits {
+    One = 1,
+    Two = 2,
+}
+
+impl GdStopBits {
+    fn to_serialport(self) -> serialport::StopBits {
+        match self {
+            GdStopBits::One => serialport::StopBits::One,
+            GdStopBits::Two => serialport::StopBits::Two,
+        }
+    }
+}
+
+#[derive(GodotConvert, Var, Export, Copy, Clone, Debug, PartialEq)]
+#[godot(via = i32)]
+pub enum GdFlowControl {
+    None = 0,
+    Software = 1,
+    Hardware = 2,
+}
+
+impl GdFlowControl {
+    fn to_serialport(self) -> serialport::FlowControl {
+        match self {
+            GdFlowControl::None => serialport::FlowControl::None,
+            GdFlowControl::Software => serialport::FlowControl::Software,
+            GdFlowControl::Hardware => serialport::FlowControl::Hardware,
+        }
+    }
+}
 
 fn get_usb_device_name(vid: u16, pid: u16, manufacturer: &Option<String>, product: &Option<String>) -> String {
     // Build device name from available USB descriptor information
@@ -42,10 +115,10 @@ pub struct GdSerial {
     port: Option<Box<dyn SerialPort>>,
     port_name: String,
     baud_rate: u32,
-    data_bits: DataBits,
-    parity: Parity,
-    stop_bits: StopBits,
-    flow_control: FlowControl,
+    data_bits: GdDataBits,
+    parity: GdParity,
+    stop_bits: GdStopBits,
+    flow_control: GdFlowControl,
     timeout: Duration,
     is_connected: bool,  // Track connection state
 }
@@ -58,10 +131,10 @@ impl IRefCounted for GdSerial {
             port: None,
             port_name: String::new(),
             baud_rate: 9600,
-            data_bits: DataBits::Eight,
-            stop_bits: StopBits::One,
-            flow_control: FlowControl::None,
-            parity: Parity::None,
+            data_bits: GdDataBits::Eight,
+            stop_bits: GdStopBits::One,
+            flow_control: GdFlowControl::None,
+            parity: GdParity::None,
             timeout: Duration::from_millis(1000),
             is_connected: false,
         }
@@ -187,66 +260,23 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn set_data_bits(&mut self, data_bits: u8) {
-        match data_bits {
-            6 => {
-                self.data_bits = DataBits::Six;
-            },
-            7 => {
-                self.data_bits = DataBits::Seven;
-            },
-            8 => {
-                self.data_bits = DataBits::Eight;
-            },
-            _ => {
-                godot_error!("Data bits must be between 6 and 8")
-            }
-        }
+    pub fn set_data_bits(&mut self, data_bits: GdDataBits) {
+        self.data_bits = data_bits;
     }
 
     #[func]
-    pub fn set_parity(&mut self, parity: bool) {
-        match parity {
-            false => {
-                self.parity = Parity::None;
-            },
-            true => {
-                self.parity = Parity::Odd;
-            }
-        }
+    pub fn set_parity(&mut self, parity: GdParity) {
+        self.parity = parity;
     }
 
     #[func]
-    pub fn set_stop_bits(&mut self, stop_bits: u8) {
-        match stop_bits {
-            1 => {
-                self.stop_bits = StopBits::One;
-            },
-            2 => {
-                self.stop_bits = StopBits::Two;
-            },
-            _ => {
-                godot_error!("Stop bits must be between 1 and 2")
-            }
-        }
+    pub fn set_stop_bits(&mut self, stop_bits: GdStopBits) {
+        self.stop_bits = stop_bits;
     }
 
     #[func]
-    pub fn set_flow_control(&mut self, flow_control: u8) {
-        match flow_control {
-            0 => {
-                self.flow_control = FlowControl::None;
-            },
-            1 => {
-                self.flow_control = FlowControl::Software;
-            },
-            2 => {
-                self.flow_control = FlowControl::Hardware;
-            },
-            _ => {
-                godot_error!("Data bits must be between 0 and 2")
-            }
-        }
+    pub fn set_flow_control(&mut self, flow_control: GdFlowControl) {
+        self.flow_control = flow_control;
     }
     
     #[func]
@@ -260,13 +290,13 @@ impl GdSerial {
             godot_error!("Port name not set");
             return false;
         }
-        
+
         match serialport::new(&self.port_name, self.baud_rate)
             .timeout(self.timeout)
-            .data_bits(self.data_bits)
-            .parity(self.parity)
-            .stop_bits(self.stop_bits)
-            .flow_control(self.flow_control)
+            .data_bits(self.data_bits.to_serialport())
+            .parity(self.parity.to_serialport())
+            .stop_bits(self.stop_bits.to_serialport())
+            .flow_control(self.flow_control.to_serialport())
             .open()
         {
             Ok(port) => {
