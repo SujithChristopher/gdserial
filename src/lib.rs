@@ -6,72 +6,72 @@ use std::io::{self, Read};
 // Godot-exportable enums for serial port configuration
 #[derive(GodotConvert, Var, Export, Copy, Clone, Debug, PartialEq)]
 #[godot(via = i32)]
-pub enum GdDataBits {
+pub enum DataBits {
     Five = 5,
     Six = 6,
     Seven = 7,
     Eight = 8,
 }
 
-impl GdDataBits {
+impl DataBits {
     fn to_serialport(self) -> serialport::DataBits {
         match self {
-            GdDataBits::Five => serialport::DataBits::Five,
-            GdDataBits::Six => serialport::DataBits::Six,
-            GdDataBits::Seven => serialport::DataBits::Seven,
-            GdDataBits::Eight => serialport::DataBits::Eight,
+            DataBits::Five => serialport::DataBits::Five,
+            DataBits::Six => serialport::DataBits::Six,
+            DataBits::Seven => serialport::DataBits::Seven,
+            DataBits::Eight => serialport::DataBits::Eight,
         }
     }
 }
 
 #[derive(GodotConvert, Var, Export, Copy, Clone, Debug, PartialEq)]
 #[godot(via = i32)]
-pub enum GdParity {
+pub enum Parity {
     None = 0,
     Odd = 1,
     Even = 2,
 }
 
-impl GdParity {
+impl Parity {
     fn to_serialport(self) -> serialport::Parity {
         match self {
-            GdParity::None => serialport::Parity::None,
-            GdParity::Odd => serialport::Parity::Odd,
-            GdParity::Even => serialport::Parity::Even,
+            Parity::None => serialport::Parity::None,
+            Parity::Odd => serialport::Parity::Odd,
+            Parity::Even => serialport::Parity::Even,
         }
     }
 }
 
 #[derive(GodotConvert, Var, Export, Copy, Clone, Debug, PartialEq)]
 #[godot(via = i32)]
-pub enum GdStopBits {
+pub enum StopBits {
     One = 1,
     Two = 2,
 }
 
-impl GdStopBits {
+impl StopBits {
     fn to_serialport(self) -> serialport::StopBits {
         match self {
-            GdStopBits::One => serialport::StopBits::One,
-            GdStopBits::Two => serialport::StopBits::Two,
+            StopBits::One => serialport::StopBits::One,
+            StopBits::Two => serialport::StopBits::Two,
         }
     }
 }
 
 #[derive(GodotConvert, Var, Export, Copy, Clone, Debug, PartialEq)]
 #[godot(via = i32)]
-pub enum GdFlowControl {
+pub enum FlowControl {
     None = 0,
     Software = 1,
     Hardware = 2,
 }
 
-impl GdFlowControl {
+impl FlowControl {
     fn to_serialport(self) -> serialport::FlowControl {
         match self {
-            GdFlowControl::None => serialport::FlowControl::None,
-            GdFlowControl::Software => serialport::FlowControl::Software,
-            GdFlowControl::Hardware => serialport::FlowControl::Hardware,
+            FlowControl::None => serialport::FlowControl::None,
+            FlowControl::Software => serialport::FlowControl::Software,
+            FlowControl::Hardware => serialport::FlowControl::Hardware,
         }
     }
 }
@@ -115,10 +115,10 @@ pub struct GdSerial {
     port: Option<Box<dyn SerialPort>>,
     port_name: String,
     baud_rate: u32,
-    data_bits: GdDataBits,
-    parity: GdParity,
-    stop_bits: GdStopBits,
-    flow_control: GdFlowControl,
+    data_bits: DataBits,
+    parity: Parity,
+    stop_bits: StopBits,
+    flow_control: FlowControl,
     timeout: Duration,
     is_connected: bool,  // Track connection state
 }
@@ -131,10 +131,10 @@ impl IRefCounted for GdSerial {
             port: None,
             port_name: String::new(),
             baud_rate: 9600,
-            data_bits: GdDataBits::Eight,
-            stop_bits: GdStopBits::One,
-            flow_control: GdFlowControl::None,
-            parity: GdParity::None,
+            data_bits: DataBits::Eight,
+            stop_bits: StopBits::One,
+            flow_control: FlowControl::None,
+            parity: Parity::None,
             timeout: Duration::from_millis(1000),
             is_connected: false,
         }
@@ -260,22 +260,22 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn set_data_bits(&mut self, data_bits: GdDataBits) {
+    pub fn set_data_bits(&mut self, data_bits: DataBits) {
         self.data_bits = data_bits;
     }
 
     #[func]
-    pub fn set_parity(&mut self, parity: GdParity) {
+    pub fn set_parity(&mut self, parity: Parity) {
         self.parity = parity;
     }
 
     #[func]
-    pub fn set_stop_bits(&mut self, stop_bits: GdStopBits) {
+    pub fn set_stop_bits(&mut self, stop_bits: StopBits) {
         self.stop_bits = stop_bits;
     }
 
     #[func]
-    pub fn set_flow_control(&mut self, flow_control: GdFlowControl) {
+    pub fn set_flow_control(&mut self, flow_control: FlowControl) {
         self.flow_control = flow_control;
     }
     
