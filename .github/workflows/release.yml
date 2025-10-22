@@ -23,6 +23,10 @@ jobs:
             target: x86_64-pc-windows-msvc
             lib_name: gdserial.dll
             use_cross: false
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            lib_name: gdserial.dll
+            use_cross: false
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             lib_name: libgdserial.so
@@ -98,6 +102,7 @@ jobs:
       run: |
         # Create addon directory structure
         mkdir -p release/addons/gdserial/bin/windows-x86_64
+        mkdir -p release/addons/gdserial/bin/windows-arm64
         mkdir -p release/addons/gdserial/bin/linux-x86_64
         mkdir -p release/addons/gdserial/bin/linux-arm64
         mkdir -p release/addons/gdserial/bin/macos-x86_64
@@ -105,6 +110,7 @@ jobs:
 
         # Copy platform-specific libraries
         cp gdserial-x86_64-pc-windows-msvc/gdserial.dll release/addons/gdserial/bin/windows-x86_64/
+        cp gdserial-aarch64-pc-windows-msvc/gdserial.dll release/addons/gdserial/bin/windows-arm64/
         cp gdserial-x86_64-unknown-linux-gnu/libgdserial.so release/addons/gdserial/bin/linux-x86_64/
         cp gdserial-aarch64-unknown-linux-gnu/libgdserial.so release/addons/gdserial/bin/linux-arm64/
         cp gdserial-x86_64-apple-darwin/libgdserial.dylib release/addons/gdserial/bin/macos-x86_64/
@@ -161,6 +167,7 @@ jobs:
           
           ### Supported Platforms
           - Windows x64
+          - Windows ARM64 (Surface Pro X, Snapdragon PCs)
           - Linux x64
           - Linux ARM64 (Raspberry Pi, ARM servers)
           - macOS Intel (x86_64)
