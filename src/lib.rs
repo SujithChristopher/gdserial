@@ -143,50 +143,44 @@ impl IRefCounted for GdSerial {
 
 #[godot_api]
 impl GdSerial {
+    /// Check if an IO error kind indicates disconnection
+    fn is_io_disconnection_error(error_kind: io::ErrorKind) -> bool {
+        matches!(error_kind,
+            io::ErrorKind::BrokenPipe |
+            io::ErrorKind::ConnectionAborted |
+            io::ErrorKind::NotConnected |
+            io::ErrorKind::UnexpectedEof |
+            io::ErrorKind::PermissionDenied  // Can occur on disconnect
+        )
+    }
+
     /// Check if the error indicates a disconnected device
     fn is_disconnection_error(error: &serialport::Error) -> bool {
         match error.kind() {
             ErrorKind::NoDevice => true,
-            ErrorKind::Io(io_error) => {
-                // Check for common disconnection errors
-                matches!(io_error, 
-                    io::ErrorKind::BrokenPipe | 
-                    io::ErrorKind::ConnectionAborted |
-                    io::ErrorKind::NotConnected |
-                    io::ErrorKind::UnexpectedEof |
-                    io::ErrorKind::PermissionDenied  // Can occur on disconnect
-                )
-            }
+            ErrorKind::Io(io_error) => Self::is_io_disconnection_error(io_error),
             _ => false
         }
     }
-    
-    /// Check if IO error indicates disconnection
-    fn is_io_disconnection_error(error: &io::Error) -> bool {
-        matches!(error.kind(), 
-            io::ErrorKind::BrokenPipe | 
-            io::ErrorKind::ConnectionAborted |
-            io::ErrorKind::NotConnected |
-            io::ErrorKind::UnexpectedEof |
-            io::ErrorKind::PermissionDenied
-        )
+
+    /// Mark device as disconnected and clean up port
+    fn mark_disconnected(&mut self, reason: &str) {
+        godot_print!("Device disconnected ({}), closing port", reason);
+        self.port = None;
+        self.is_connected = false;
     }
-    
+
     /// Handle potential disconnection by closing the port if device is no longer available
     fn handle_potential_disconnection(&mut self, error: &serialport::Error) {
         if Self::is_disconnection_error(error) {
-            godot_print!("Device disconnected, closing port");
-            self.port = None;
-            self.is_connected = false;
+            self.mark_disconnected(&error.to_string());
         }
     }
-    
+
     /// Handle potential disconnection for IO errors
     fn handle_potential_io_disconnection(&mut self, error: &io::Error) {
-        if Self::is_io_disconnection_error(error) {
-            godot_print!("Device disconnected (IO error), closing port");
-            self.port = None;
-            self.is_connected = false;
+        if Self::is_io_disconnection_error(error.kind()) {
+            self.mark_disconnected(&error.to_string());
         }
     }
     
@@ -457,10 +451,10 @@ impl GdSerial {
                             break;
                         }
                         Err(e) => {
-                            if Self::is_io_disconnection_error(&e) {
+                            if Self::is_io_disconnection_error(e.kind()) {
                                 self.handle_potential_io_disconnection(&e);
                             }
-                            
+
                             if line.is_empty() && e.kind() != io::ErrorKind::WouldBlock {
                                 godot_error!("Failed to read line: {}", e);
                                 return GString::new();
