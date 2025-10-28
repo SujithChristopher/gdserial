@@ -52,7 +52,7 @@ source = "git+https://github.com/godot-rust/godot4-prebuilt?branch=releases#0943
 
 [[package]]
 name = "gdserial"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "godot",
  "serialport",
