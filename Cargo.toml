@@ -15,3 +15,9 @@ crate-type = ["cdylib"]
 [dependencies]
 godot = { git = "https://github.com/godot-rust/gdext", branch = "master" }
 serialport = "4.7.2"
+
+[profile.release]
+opt-level = 3            # Maximum optimization
+lto = "fat"              # Aggressive link-time optimization
+strip = true             # Strip debug symbols
+panic = "abort"          # Slightly faster
