@@ -13,7 +13,7 @@ authors = ["Sujith Christopher"]
 crate-type = ["cdylib"]
 
 [dependencies]
-godot = "0.4.4"
+godot = "0.4.5"
 serialport = "4.7.2"
 
 [profile.release]
