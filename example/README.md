@@ -1,97 +1,161 @@
 # GdSerial Example Project
 
-This is a simple Godot 4 example project for testing the GdSerial plugin with thread-safe serial communication.
+Two minimal examples demonstrating the GdSerial serial communication plugin for Godot 4.
 
-## Features
+## Quick Start
 
-✓ **Thread-Safe Serial Communication** (v0.3.0+)
-- GdSerial uses interior mutability with `Arc<Mutex<>>`
-- All methods are safe to call from background threads
-- All Godot RefCounted operations happen safely
+### 1. Build & Setup
 
-✓ **Simple UI for Testing**
-- Open/Close port
-- Send data
-- Read data continuously
-- Clear display
+```bash
+# Build the plugin (Windows)
+.\\build_release.bat
 
-## Setup
+# Build the plugin (Linux/macOS)
+./build_release.sh
+```
 
-### Automatic (After Build)
+The addon is automatically copied to `example/addons/` during the build.
 
-1. Build the GdSerial Rust extension:
-   ```bash
-   # Windows
-   .\build_release.bat
+### 2. Open in Godot
 
-   # Linux/macOS
-   ./build_release.sh
-   ```
+- Navigate to the `example/` folder
+- Open in Godot 4.x
+- Run the project (F5 or Play)
 
-2. The addon will be **automatically copied** to `example/addons/`
+### 3. Test Communication
 
-3. Open this project in Godot 4.x
+1. Connect a serial device (Arduino, USB adapter, etc.)
+2. Set the port name (COM3, /dev/ttyUSB0, etc.)
+3. Click "Open Port" to connect
+4. Send and receive data
 
-### Manual
+## Example 1: Simple Usage (simple_example.tscn)
 
-If you've built GdSerial separately:
+Basic serial communication demonstration:
 
-1. Copy the `addons/gdserial/` folder to `example/addons/gdserial/`
-2. Open this project in Godot 4.x
-3. Rebuild the project
+**Features:**
+- Open/close serial port
+- Send messages
+- Read incoming data
+- Real-time status display
 
-## How to Test
+**Code:** `simple_example.gd` (~50 lines)
 
-1. **Connect a serial device** (Arduino, USB serial adapter, etc.)
+**How to use:**
+1. Run the scene (F5)
+2. Enter port name (e.g., "COM3")
+3. Click "Open Port"
+4. Type a message and click "Send"
+5. Click "Read Data" to receive messages
 
-2. **Open Godot** and load this example project
+## Example 2: Thread Safety (thread_example.tscn)
 
-3. **Update the port name** in the "Port:" field:
-   - Windows: `COM3`, `COM4`, etc.
-   - Linux: `/dev/ttyUSB0`, `/dev/ttyACM0`, etc.
-   - macOS: `/dev/tty.usbserial-*`, `/dev/tty.usbmodem*`, etc.
+Demonstrates GdSerial's thread-safe architecture (v0.3.0+):
 
-4. **Click "Open Port"** to connect
+**Features:**
+- Background thread calls GdSerial methods
+- Main thread remains responsive
+- No crashes or data races
+- Lock overhead: ~10-20ns (negligible)
 
-5. **Test communication:**
-   - Type text in "Send:" field and click "Send"
-   - Click "Read Once" to read one line
-   - Data appears in the right panel automatically
+**Code:** `thread_example.gd` (~35 lines)
 
-6. **Check console output** for detailed debug information
+**How to use:**
+1. Connect a serial device on COM3
+2. Run the scene (F5)
+3. Click "Start Background Thread Test"
+4. Watch success message confirm thread-safe operation
 
-## Thread Safety Testing
+## Architecture (v0.3.0)
 
-The thread-safe implementation (v0.3.0+) means:
+### What's Thread-Safe
 
-- ✓ Multiple threads can call GdSerial methods safely
-- ✓ No crashes due to concurrent access
-- ✓ Automatic synchronization with `Arc<Mutex<>>`
-- ✓ Lock overhead: ~10-20ns (negligible for serial I/O)
+✓ All read/write operations
+✓ Configuration (baud rate, timeout, etc.)
+✓ Port open/close
+✓ Simultaneous access from multiple threads
 
-See `CLAUDE.md` in the root project for technical details.
+### Interior Mutability Pattern
+
+```rust
+pub struct GdSerial {
+    state: Arc<Mutex<GdSerialState>>  // Thread-safe wrapper
+}
+
+// All methods use &self (not &mut self)
+pub fn read(&self, size: u32) -> PackedByteArray
+pub fn write(&self, data: PackedByteArray) -> bool
+```
+
+### When to Use Threads
+
+**Simple case (95% of applications):**
+```gdscript
+# Keep serial I/O in main thread
+func _process(delta):
+    if serial.bytes_available() > 0:
+        var data = serial.readline()
+        label.text = data  # GUI updates in main thread
+```
+
+**Advanced case (heavy computation):**
+```gdscript
+# Use threads for expensive work, main thread for I/O
+func _thread_func():
+    expensive_result = calculate_something()
+    call_deferred("_on_complete", expensive_result)
+
+func _process(delta):
+    if serial.bytes_available() > 0:
+        var data = serial.readline()  # Main thread handles serial I/O
+```
 
 ## Troubleshooting
 
 ### Port Not Found
-- Check the console for available ports
-- Make sure the device is connected
-- Try a different port name
+- Check device is connected
+- Windows: Try COM1-COM10
+- Linux: Check `/dev/ttyUSB*` or `/dev/ttyACM*`
+- macOS: Check `/dev/tty.usbserial-*` or `/dev/tty.usbmodem*`
 
 ### No Data Received
-- Check baud rate matches your device (default: 9600)
-- Check the timeout setting (default: 100ms)
-- Try sending test data from the device
+- Verify baud rate matches device (default: 9600)
+- Check timeout setting (default: 100ms)
+- Verify device is sending data
 
-### Data Garbled
-- Check baud rate and serial settings
-- Try lowering the timeout value
-- Restart the device
+### Data Garbled or Incomplete
+- Check baud rate and serial settings match
+- Verify no other application is using the port
+- Try restarting the device
 
-## Example Code
+### Permission Denied (Linux)
+```bash
+# Add user to dialout group
+sudo usermod -a -G dialout $USER
+# Log out and log in again
+```
 
-See `main.gd` for a complete example of:
-- Opening/closing serial ports
-- Sending and receiving data
-- Handling serial errors
-- Thread-safe communication patterns
+## File Structure
+
+```
+example/
+├── simple_example.gd       # Simple usage script (~50 lines)
+├── simple_example.tscn     # Simple usage scene
+├── thread_example.gd       # Thread safety demo (~35 lines)
+├── thread_example.tscn     # Thread safety scene
+├── addons/gdserial/        # Plugin (auto-copied during build)
+├── project.godot           # Godot project configuration
+└── README.md              # This file
+```
+
+## Documentation
+
+- **Architecture Details:** See `CLAUDE.md` in the root project
+- **Full API Reference:** See Godot's class reference (built-in after rebuild)
+- **Threading Best Practices:** See threading examples in the example scripts
+
+## Version
+
+- Plugin: v0.3.0 (thread-safe with Arc<Mutex<>>)
+- Godot: 4.5+
+- Rust: 1.70+

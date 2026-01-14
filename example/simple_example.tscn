@@ -1,0 +1,158 @@
+[gd_scene load_steps=2 format=3 uid="uid://c7dmbrito7ci5"]
+
+[ext_resource type="Script" uid="uid://c5n3ed8x6jtbn" path="res://simple_example.gd" id="1_simple_script"]
+
+[node name="SimpleExample" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_simple_script")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.12549, 0.12549, 0.12549, 1)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="VBoxContainer#Title" type="Label" parent="."]
+layout_mode = 0
+offset_left = 271.0
+offset_top = 4.0
+offset_right = 522.0
+offset_bottom = 32.0
+theme_override_font_sizes/font_size = 20
+text = "GdSerial - Simple Example"
+
+[node name="VBoxContainer#Instructions" type="Label" parent="."]
+layout_mode = 0
+theme_override_font_sizes/font_size = 11
+text = "1. Connect a serial device
+2. Enter port name (COM3, /dev/ttyUSB0, etc.)
+3. Click Open to connect"
+text_overrun_behavior = 2
+
+[node name="VBoxContainer#HSeparator1" type="HSeparator" parent="."]
+layout_mode = 0
+
+[node name="VBoxContainer#PortContainer" type="HBoxContainer" parent="."]
+layout_mode = 0
+theme_override_constants/separation = 10
+
+[node name="VBoxContainer_PortContainer#PortLabel" type="Label" parent="."]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 0
+offset_left = 33.0
+offset_top = 59.0
+offset_right = 93.0
+offset_bottom = 82.0
+text = "Port:"
+
+[node name="VBoxContainer_PortContainer#PortInput" type="LineEdit" parent="."]
+layout_mode = 0
+offset_left = 98.0
+offset_top = 56.0
+offset_right = 166.5625
+offset_bottom = 87.0
+size_flags_horizontal = 3
+text = "COM3"
+placeholder_text = "COM3, /dev/ttyUSB0"
+
+[node name="VBoxContainer#ButtonContainer" type="HBoxContainer" parent="."]
+layout_mode = 0
+theme_override_constants/separation = 10
+
+[node name="VBoxContainer_ButtonContainer#OpenButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 38.0
+offset_top = 95.0
+offset_right = 125.0
+offset_bottom = 126.0
+size_flags_horizontal = 3
+text = "Open Port"
+
+[node name="VBoxContainer_ButtonContainer#CloseButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 39.0
+offset_top = 133.0
+offset_right = 126.0
+offset_bottom = 164.0
+size_flags_horizontal = 3
+text = "Close Port"
+
+[node name="VBoxContainer#HSeparator2" type="HSeparator" parent="."]
+layout_mode = 0
+
+[node name="VBoxContainer#SendContainer" type="HBoxContainer" parent="."]
+layout_mode = 0
+theme_override_constants/separation = 10
+
+[node name="VBoxContainer_SendContainer#SendLabel" type="Label" parent="."]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 0
+offset_left = 54.0
+offset_top = 288.0
+offset_right = 114.0
+offset_bottom = 311.0
+text = "Send:"
+
+[node name="VBoxContainer_SendContainer#SendInput" type="LineEdit" parent="."]
+layout_mode = 0
+offset_left = 113.0
+offset_top = 284.0
+offset_right = 318.0
+offset_bottom = 315.0
+size_flags_horizontal = 3
+placeholder_text = "Type message..."
+
+[node name="VBoxContainer#SendButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 37.0
+offset_top = 220.0
+offset_right = 155.0
+offset_bottom = 251.0
+text = "Send Message"
+
+[node name="VBoxContainer#HSeparator3" type="HSeparator" parent="."]
+layout_mode = 0
+
+[node name="VBoxContainer#ReadButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 39.0
+offset_top = 178.0
+offset_right = 127.0
+offset_bottom = 209.0
+text = "Read Data"
+
+[node name="VBoxContainer#OutputLabel" type="Label" parent="."]
+layout_mode = 0
+theme_override_font_sizes/font_size = 12
+text = "Status: Ready"
+text_overrun_behavior = 2
+
+[node name="VBoxContainer#Output" type="Label" parent="."]
+layout_mode = 0
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 11
+text = "Click 'Open Port' to start"
+text_overrun_behavior = 2
