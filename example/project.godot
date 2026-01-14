@@ -13,7 +13,7 @@ config_version=5
 config/name="GdSerial Example"
 config/description="Example project for testing GdSerial thread-safe serial communication"
 config/version="0.3.0"
-run/main_scene="res://main.tscn"
+run/main_scene="res://menu.tscn"
 config/features=PackedStringArray("4.5")
 
 [display]

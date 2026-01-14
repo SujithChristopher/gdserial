@@ -1,0 +1,88 @@
+[gd_scene load_steps=2 format=3 uid="uid://dlu8g7x1pc3t5"]
+
+[ext_resource type="Script" path="res://thread_example.gd" id="1_thread_script"]
+
+[node name="ThreadExample" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_thread_script")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -150.0
+offset_right = 200.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 15
+
+[node name="Title" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "Thread-Safe Example"
+theme_override_font_sizes/font_size = 20
+
+[node name="Subtitle" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "GdSerial v0.3.0 - Call from Background Thread"
+theme_override_font_sizes/font_size = 12
+
+[node name="HSeparator1" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="InfoLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "This example demonstrates thread safety:
+
+✓ Background thread calls serial.write()
+✓ Main thread reads with serial.read()
+✓ Both happen concurrently - NO CRASHES!
+
+All GdSerial methods are synchronized with Arc<Mutex<>>"
+text_overrun_behavior = 2
+autowrap_mode = 2
+
+[node name="HSeparator2" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="StartButton" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+text = "Start Background Thread"
+custom_minimum_size = Vector2(0, 50)
+
+[node name="OutputLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "Check console output (Output tab)"
+theme_override_font_sizes/font_size = 11
+text_overrun_behavior = 2
+
+[node name="InfoPanel" type="PanelContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="VBoxContainer/InfoPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="DetailsLabel" type="Label" parent="VBoxContainer/InfoPanel/MarginContainer"]
+layout_mode = 2
+text = "Thread sends 5 test messages while main thread reads data.
+
+Architecture:
+• Arc<Mutex<GdSerialState>> protects all state
+• Lock: ~10-20ns overhead (negligible)
+• Both threads access GdSerial safely!"
+text_overrun_behavior = 2
+
+[connection signal="pressed" from="VBoxContainer/StartButton" to="." method="_on_button_pressed"]

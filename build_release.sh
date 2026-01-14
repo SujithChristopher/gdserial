@@ -38,6 +38,39 @@ esac
 echo "Build complete! Library files copied to addons/gdserial/bin/"
 echo ""
 
-# Copy addon to example project
+# ========================================
+# Copy addon to example folder
+# ========================================
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-bash "$SCRIPT_DIR/copy_addon.sh"
+SOURCE_ADDON="$SCRIPT_DIR/addons/gdserial"
+DEST_ADDON="$SCRIPT_DIR/example/addons/gdserial"
+
+echo ""
+echo "========================================"
+echo "Copying addon to example project..."
+echo "========================================"
+echo ""
+
+# Check if source exists
+if [ ! -d "$SOURCE_ADDON" ]; then
+    echo "✗ Error: Source addon not found at $SOURCE_ADDON"
+    exit 1
+fi
+
+# Remove old destination if it exists
+if [ -d "$DEST_ADDON" ]; then
+    echo "Removing old addon copy..."
+    rm -rf "$DEST_ADDON"
+fi
+
+# Create destination directory and copy addon
+mkdir -p "$(dirname "$DEST_ADDON")"
+cp -r "$SOURCE_ADDON" "$DEST_ADDON"
+
+if [ $? -eq 0 ]; then
+    echo "✓ Addon copied successfully!"
+    echo "You can now open the example project in Godot"
+else
+    echo "✗ Error: Failed to copy addon"
+    exit 1
+fi
