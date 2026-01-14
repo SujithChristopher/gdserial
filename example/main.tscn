@@ -1,0 +1,119 @@
+[gd_scene load_steps=2 format=3 uid="uid://c7dmbrito7ci5"]
+
+[ext_resource type="Script" path="res://main.gd" id="1_main_script"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main_script")
+
+[node name="HSplitContainer" type="HSplitContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+split_offset = 200
+
+[node name="ControlPanel" type="VBoxContainer" parent="HSplitContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "GdSerial v0.3.0 Test"
+theme_override_font_sizes/font_size = 18
+
+[node name="HSeparator1" type="HSeparator" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+
+[node name="PortLabel" type="Label" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "Port:"
+
+[node name="PortInput" type="LineEdit" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "COM3"
+placeholder_text = "COM3, /dev/ttyUSB0, etc."
+
+[node name="BaudLabel" type="Label" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "Baud Rate: 9600"
+
+[node name="StatusLabel" type="Label" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "Initializing..."
+theme_override_font_sizes/font_size = 12
+
+[node name="BytesLabel" type="Label" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "Bytes available: 0"
+
+[node name="HSeparator2" type="HSeparator" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+
+[node name="OpenButton" type="Button" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "Open Port"
+
+[node name="CloseButton" type="Button" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "Close Port"
+
+[node name="HSeparator3" type="HSeparator" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+
+[node name="SendLabel" type="Label" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "Send:"
+
+[node name="SendInput" type="LineEdit" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+placeholder_text = "Enter text to send"
+
+[node name="SendButton" type="Button" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "Send"
+
+[node name="HSeparator4" type="HSeparator" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+
+[node name="ReadButton" type="Button" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "Read Once"
+
+[node name="ClearButton" type="Button" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "Clear Display"
+
+[node name="HSeparator5" type="HSeparator" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+
+[node name="InfoLabel" type="Label" parent="HSplitContainer/ControlPanel"]
+layout_mode = 2
+text = "✓ v0.3.0: Thread-safe
+✓ Safe to use from threads
+✓ Interior mutability (Arc<Mutex<>>)
+✓ Check console for details"
+text_overrun_behavior = 2
+theme_override_font_sizes/font_size = 11
+
+[node name="DataPanel" type="PanelContainer" parent="HSplitContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ScrollContainer" type="ScrollContainer" parent="HSplitContainer/DataPanel"]
+layout_mode = 2
+
+[node name="DataLabel" type="Label" parent="HSplitContainer/DataPanel/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "Waiting for serial data..."
+autowrap_mode = 2

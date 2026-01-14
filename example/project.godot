@@ -1,0 +1,30 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="GdSerial Example"
+config/description="Example project for testing GdSerial thread-safe serial communication"
+config/version="0.3.0"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.5")
+
+[display]
+
+window/size/viewport_width=800
+window/size/viewport_height=600
+
+[physics]
+
+common/physics_engine="GodotPhysics2D"
+
+[rendering]
+
+textures/canvas_textures/hdri_mode=0

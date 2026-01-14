@@ -49,3 +49,5 @@ export_presets.cfg
 .mono/
 data_*/
 mono_crash.*.json
+example/.godot
+example/addons/

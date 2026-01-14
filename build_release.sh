@@ -37,3 +37,7 @@ esac
 
 echo "Build complete! Library files copied to addons/gdserial/bin/"
 echo ""
+
+# Copy addon to example project
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+bash "$SCRIPT_DIR/copy_addon.sh"

@@ -23,3 +23,6 @@ copy "target\release\gdserial.dll" "addons\gdserial\bin\windows-%ARCH_NAME%\" >n
 
 echo Build complete! Library files copied to addons/gdserial/bin/windows-%ARCH_NAME%/
 echo.
+
+REM Copy addon to example project
+call "%~dp0copy_addon.bat"
