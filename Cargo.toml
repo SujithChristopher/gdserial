@@ -1,6 +1,6 @@
 [package]
 name = "gdserial"
-version = "0.2.8"
+version = "0.3.0"
 edition = "2021"
 description = "Serial communication library for Godot 4 with PySerial-like API - Arduino, sensors, IoT integration"
 license = "MIT"
@@ -15,6 +15,7 @@ crate-type = ["cdylib"]
 [dependencies]
 godot = "0.4.5"
 serialport = "4.7.2"
+parking_lot = "0.12"
 
 [profile.release]
 opt-level = 3            # Maximum optimization

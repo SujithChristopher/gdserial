@@ -1,7 +1,9 @@
 use godot::prelude::*;
 use serialport::{DataBits, ErrorKind, FlowControl, Parity, SerialPort, SerialPortType, StopBits};
 use std::io::{self, Read};
+use std::sync::Arc;
 use std::time::Duration;
+use parking_lot::Mutex;
 
 fn get_usb_device_name(
     vid: u16,
@@ -40,10 +42,8 @@ struct GdSerialExtension;
 #[gdextension]
 unsafe impl ExtensionLibrary for GdSerialExtension {}
 
-#[derive(GodotClass)]
-#[class(base=RefCounted)]
-pub struct GdSerial {
-    base: Base<RefCounted>,
+/// Internal state for GdSerial - all mutable fields protected by Mutex
+struct GdSerialState {
     port: Option<Box<dyn SerialPort>>,
     port_name: String,
     baud_rate: u32,
@@ -52,7 +52,48 @@ pub struct GdSerial {
     parity: Parity,
     flow_control: FlowControl,
     timeout: Duration,
-    is_connected: bool, // Track connection state
+    is_connected: bool,
+}
+
+/// Cross-platform serial communication for Godot 4
+///
+/// # Thread Safety
+///
+/// As of version 0.3.0, GdSerial is thread-safe and can be safely accessed
+/// from multiple threads simultaneously. All operations are automatically
+/// synchronized using interior mutability with Arc<Mutex<>>.
+///
+/// ## Usage from Background Threads
+///
+/// ```gdscript
+/// # Create serial port on main thread
+/// var serial = GdSerial.new()
+/// serial.set_port("COM3")
+/// serial.open()
+///
+/// # Access from background thread (Godot Thread)
+/// var thread = Thread.new()
+/// thread.start(func():
+///     while serial.is_open():
+///         var data = serial.readline()
+///         # Process data...
+/// )
+/// ```
+///
+/// ## Godot Threading Best Practices
+///
+/// - Use Godot's Thread class for background tasks
+/// - Be careful with Godot API calls from background threads
+/// - Use call_deferred to communicate back to main thread
+/// - Always join threads before freeing the serial port
+#[derive(GodotClass)]
+#[class(base=RefCounted)]
+pub struct GdSerial {
+    base: Base<RefCounted>,
+    // Thread-safe state using Arc<Mutex<>>
+    // Arc allows shared ownership across clones
+    // Mutex ensures exclusive access to mutable state
+    state: Arc<Mutex<GdSerialState>>,
 }
 
 #[godot_api]
@@ -60,15 +101,17 @@ impl IRefCounted for GdSerial {
     fn init(base: Base<RefCounted>) -> Self {
         Self {
             base,
-            port: None,
-            port_name: String::new(),
-            baud_rate: 9600,
-            data_bits: DataBits::Eight,
-            stop_bits: StopBits::One,
-            flow_control: FlowControl::None,
-            parity: Parity::None,
-            timeout: Duration::from_millis(1000),
-            is_connected: false,
+            state: Arc::new(Mutex::new(GdSerialState {
+                port: None,
+                port_name: String::new(),
+                baud_rate: 9600,
+                data_bits: DataBits::Eight,
+                stop_bits: StopBits::One,
+                flow_control: FlowControl::None,
+                parity: Parity::None,
+                timeout: Duration::from_millis(1000),
+                is_connected: false,
+            })),
         }
     }
 }
@@ -106,35 +149,38 @@ impl GdSerial {
         )
     }
 
-    /// Handle potential disconnection by closing the port if device is no longer available
-    fn handle_potential_disconnection(&mut self, error: &serialport::Error) {
+    /// Internal helper: Handle potential disconnection by closing the port if device is no longer available
+    /// Operates on already-locked state
+    fn handle_potential_disconnection_internal(state: &mut GdSerialState, error: &serialport::Error) {
         if Self::is_disconnection_error(error) {
             godot_print!("Device disconnected, closing port");
-            self.port = None;
-            self.is_connected = false;
+            state.port = None;
+            state.is_connected = false;
         }
     }
 
-    /// Handle potential disconnection for IO errors
-    fn handle_potential_io_disconnection(&mut self, error: &io::Error) {
+    /// Internal helper: Handle potential disconnection for IO errors
+    /// Operates on already-locked state
+    fn handle_potential_io_disconnection_internal(state: &mut GdSerialState, error: &io::Error) {
         if Self::is_io_disconnection_error(error) {
             godot_print!("Device disconnected (IO error), closing port");
-            self.port = None;
-            self.is_connected = false;
+            state.port = None;
+            state.is_connected = false;
         }
     }
 
-    /// Actively test if the port is still connected by attempting a non-destructive operation
-    fn test_connection(&mut self) -> bool {
-        if let Some(ref mut port) = self.port {
+    /// Internal helper: Actively test if the port is still connected by attempting a non-destructive operation
+    /// Operates on already-locked state
+    fn test_connection_internal(state: &mut GdSerialState) -> bool {
+        if let Some(ref mut port) = state.port {
             // Try bytes_to_read as the primary test - it's the most reliable
             match port.bytes_to_read() {
                 Ok(_) => true,
                 Err(e) => {
                     // Any error here likely means disconnection
                     godot_print!("Connection test failed: {} - marking as disconnected", e);
-                    self.port = None;
-                    self.is_connected = false;
+                    state.port = None;
+                    state.is_connected = false;
                     false
                 }
             }
@@ -192,26 +238,29 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn set_port(&mut self, port_name: GString) {
-        self.port_name = port_name.to_string();
+    pub fn set_port(&self, port_name: GString) {
+        let mut state = self.state.lock();
+        state.port_name = port_name.to_string();
     }
 
     #[func]
-    pub fn set_baud_rate(&mut self, baud_rate: u32) {
-        self.baud_rate = baud_rate;
+    pub fn set_baud_rate(&self, baud_rate: u32) {
+        let mut state = self.state.lock();
+        state.baud_rate = baud_rate;
     }
 
     #[func]
-    pub fn set_data_bits(&mut self, data_bits: u8) {
+    pub fn set_data_bits(&self, data_bits: u8) {
+        let mut state = self.state.lock();
         match data_bits {
             6 => {
-                self.data_bits = DataBits::Six;
+                state.data_bits = DataBits::Six;
             }
             7 => {
-                self.data_bits = DataBits::Seven;
+                state.data_bits = DataBits::Seven;
             }
             8 => {
-                self.data_bits = DataBits::Eight;
+                state.data_bits = DataBits::Eight;
             }
             _ => {
                 godot_error!("Data bits must be between 6 and 8")
@@ -220,25 +269,27 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn set_parity(&mut self, parity: bool) {
+    pub fn set_parity(&self, parity: bool) {
+        let mut state = self.state.lock();
         match parity {
             false => {
-                self.parity = Parity::None;
+                state.parity = Parity::None;
             }
             true => {
-                self.parity = Parity::Odd;
+                state.parity = Parity::Odd;
             }
         }
     }
 
     #[func]
-    pub fn set_stop_bits(&mut self, stop_bits: u8) {
+    pub fn set_stop_bits(&self, stop_bits: u8) {
+        let mut state = self.state.lock();
         match stop_bits {
             1 => {
-                self.stop_bits = StopBits::One;
+                state.stop_bits = StopBits::One;
             }
             2 => {
-                self.stop_bits = StopBits::Two;
+                state.stop_bits = StopBits::Two;
             }
             _ => {
                 godot_error!("Stop bits must be between 1 and 2")
@@ -247,16 +298,17 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn set_flow_control(&mut self, flow_control: u8) {
+    pub fn set_flow_control(&self, flow_control: u8) {
+        let mut state = self.state.lock();
         match flow_control {
             0 => {
-                self.flow_control = FlowControl::None;
+                state.flow_control = FlowControl::None;
             }
             1 => {
-                self.flow_control = FlowControl::Software;
+                state.flow_control = FlowControl::Software;
             }
             2 => {
-                self.flow_control = FlowControl::Hardware;
+                state.flow_control = FlowControl::Hardware;
             }
             _ => {
                 godot_error!("Data bits must be between 0 and 2")
@@ -265,79 +317,85 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn set_timeout(&mut self, timeout_ms: u32) {
-        self.timeout = Duration::from_millis(timeout_ms as u64);
+    pub fn set_timeout(&self, timeout_ms: u32) {
+        let mut state = self.state.lock();
+        state.timeout = Duration::from_millis(timeout_ms as u64);
     }
 
     #[func]
-    pub fn open(&mut self) -> bool {
-        if self.port_name.is_empty() {
+    pub fn open(&self) -> bool {
+        let mut state = self.state.lock();
+
+        if state.port_name.is_empty() {
             godot_error!("Port name not set");
             return false;
         }
 
-        match serialport::new(&self.port_name, self.baud_rate)
-            .timeout(self.timeout)
-            .data_bits(self.data_bits)
-            .parity(self.parity)
-            .stop_bits(self.stop_bits)
-            .flow_control(self.flow_control)
+        match serialport::new(&state.port_name, state.baud_rate)
+            .timeout(state.timeout)
+            .data_bits(state.data_bits)
+            .parity(state.parity)
+            .stop_bits(state.stop_bits)
+            .flow_control(state.flow_control)
             .open()
         {
             Ok(port) => {
-                self.port = Some(port);
-                self.is_connected = true;
+                state.port = Some(port);
+                state.is_connected = true;
                 true
             }
             Err(e) => {
-                godot_error!("Failed to open port {}: {}", self.port_name, e);
-                self.is_connected = false;
+                godot_error!("Failed to open port {}: {}", state.port_name, e);
+                state.is_connected = false;
                 false
             }
         }
     }
 
     #[func]
-    pub fn close(&mut self) {
-        if self.port.is_some() {
-            self.port = None;
-            self.is_connected = false;
-            // Port closed - removed print output per issue #1
+    pub fn close(&self) {
+        let mut state = self.state.lock();
+        if state.port.is_some() {
+            state.port = None;
+            state.is_connected = false;
         }
     }
 
     #[func]
-    pub fn is_open(&mut self) -> bool {
+    pub fn is_open(&self) -> bool {
         // Always test the actual connection state
-        if self.port.is_some() {
-            self.test_connection()
+        let mut state = self.state.lock();
+        if state.port.is_some() {
+            Self::test_connection_internal(&mut state)
         } else {
             false
         }
     }
 
     #[func]
-    pub fn write(&mut self, data: PackedByteArray) -> bool {
+    pub fn write(&self, data: PackedByteArray) -> bool {
+        let mut state = self.state.lock();
+
         // First check if connected
-        if !self.test_connection() {
+        if !Self::test_connection_internal(&mut state) {
             godot_error!("Port not connected");
             return false;
         }
 
-        match &mut self.port {
+        match &mut state.port {
             Some(port) => {
                 let bytes = data.to_vec();
                 match port.write_all(&bytes) {
                     Ok(_) => match port.flush() {
                         Ok(_) => true,
                         Err(e) => {
-                            self.handle_potential_io_disconnection(&e);
+                            Self::handle_potential_io_disconnection_internal(&mut state, &e);
                             godot_error!("Failed to flush port: {}", e);
                             false
                         }
                     },
                     Err(e) => {
-                        self.handle_potential_io_disconnection(&e);
+                        Self::handle_potential_io_disconnection_internal(&mut state, &e);
                         godot_error!("Failed to write to port: {}", e);
                         false
                     }
@@ -351,14 +409,14 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn write_string(&mut self, data: GString) -> bool {
+    pub fn write_string(&self, data: GString) -> bool {
         let bytes = data.to_string().into_bytes();
         let packed_bytes = PackedByteArray::from(&bytes[..]);
         self.write(packed_bytes)
     }
 
     #[func]
-    pub fn writeline(&mut self, data: GString) -> bool {
+    pub fn writeline(&self, data: GString) -> bool {
         let data_with_newline = format!("{}\n", data.to_string());
         let bytes = data_with_newline.into_bytes();
         let packed_bytes = PackedByteArray::from(&bytes[..]);
@@ -366,13 +424,15 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn read(&mut self, size: u32) -> PackedByteArray {
+    pub fn read(&self, size: u32) -> PackedByteArray {
+        let mut state = self.state.lock();
+
         // First check if connected
-        if !self.test_connection() {
+        if !Self::test_connection_internal(&mut state) {
             return PackedByteArray::new();
         }
 
-        match &mut self.port {
+        match &mut state.port {
             Some(port) => {
                 let mut buffer = vec![0; size as usize];
                 match port.read(&mut buffer) {
@@ -385,7 +445,7 @@ impl GdSerial {
                         if e.kind() != io::ErrorKind::TimedOut
                             && e.kind() != io::ErrorKind::WouldBlock
                         {
-                            self.handle_potential_io_disconnection(&e);
+                            Self::handle_potential_io_disconnection_internal(&mut state, &e);
                             godot_error!("Failed to read from port: {}", e);
                         }
                         PackedByteArray::new()
@@ -400,7 +460,7 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn read_string(&mut self, size: u32) -> GString {
+    pub fn read_string(&self, size: u32) -> GString {
         let bytes = self.read(size);
         match String::from_utf8(bytes.to_vec()) {
             Ok(string) => GString::from(&string),
@@ -412,13 +472,15 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn readline(&mut self) -> GString {
+    pub fn readline(&self) -> GString {
+        let mut state = self.state.lock();
+
         // First check if connected
-        if !self.test_connection() {
+        if !Self::test_connection_internal(&mut state) {
             return GString::new();
         }
 
-        match &mut self.port {
+        match &mut state.port {
             Some(port) => {
                 let mut line = String::new();
                 let mut byte = [0u8; 1];
@@ -443,7 +505,7 @@ impl GdSerial {
                         }
                         Err(e) => {
                             if Self::is_io_disconnection_error(&e) {
-                                self.handle_potential_io_disconnection(&e);
+                                Self::handle_potential_io_disconnection_internal(&mut state, &e);
                             }
 
                             if line.is_empty() && e.kind() != io::ErrorKind::WouldBlock {
@@ -466,13 +528,15 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn bytes_available(&mut self) -> u32 {
+    pub fn bytes_available(&self) -> u32 {
+        let mut state = self.state.lock();
+
         // First check if connected
-        if !self.test_connection() {
+        if !Self::test_connection_internal(&mut state) {
             return 0;
         }
 
-        match &mut self.port {
+        match &mut state.port {
             Some(port) => {
                 match port.bytes_to_read() {
                     Ok(bytes) => bytes as u32,
@@ -483,8 +547,8 @@ impl GdSerial {
                             "Failed to get available bytes: {} - marking port as disconnected",
                             e
                         );
-                        self.port = None;
-                        self.is_connected = false;
+                        state.port = None;
+                        state.is_connected = false;
                         0
                     }
                 }
@@ -494,17 +558,19 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn clear_buffer(&mut self) -> bool {
+    pub fn clear_buffer(&self) -> bool {
+        let mut state = self.state.lock();
+
         // First check if connected
-        if !self.test_connection() {
+        if !Self::test_connection_internal(&mut state) {
             return false;
         }
 
-        match &mut self.port {
+        match &mut state.port {
             Some(port) => match port.clear(serialport::ClearBuffer::All) {
                 Ok(_) => true,
                 Err(e) => {
-                    self.handle_potential_disconnection(&e);
+                    Self::handle_potential_disconnection_internal(&mut state, &e);
                     godot_error!("Failed to clear buffer: {}", e);
                     false
                 }
