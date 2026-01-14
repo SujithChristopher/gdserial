@@ -1,9 +1,9 @@
 use godot::prelude::*;
+use parking_lot::Mutex;
 use serialport::{DataBits, ErrorKind, FlowControl, Parity, SerialPort, SerialPortType, StopBits};
 use std::io::{self, Read};
 use std::sync::Arc;
 use std::time::Duration;
-use parking_lot::Mutex;
 
 fn get_usb_device_name(
     vid: u16,
@@ -151,7 +151,10 @@ impl GdSerial {
 
     /// Internal helper: Handle potential disconnection by closing the port if device is no longer available
     /// Operates on already-locked state
-    fn handle_potential_disconnection_internal(state: &mut GdSerialState, error: &serialport::Error) {
+    fn handle_potential_disconnection_internal(
+        state: &mut GdSerialState,
+        error: &serialport::Error,
+    ) {
         if Self::is_disconnection_error(error) {
             godot_print!("Device disconnected, closing port");
             state.port = None;
