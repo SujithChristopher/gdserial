@@ -20,7 +20,7 @@ A high-performance Rust-based serial communication library for Godot 4 game engi
 ## Platform Support
 
 | Platform | Architecture | Status | Port Examples |
-|----------|--------------|--------|---------------|
+| :--- | :--- | :--- | :--- |
 | **Windows** | x64 | ✅ Supported | `COM1`, `COM3`, `COM8` |
 | **Windows** | ARM64 | ✅ Supported | `COM1`, `COM3`, `COM8` |
 | **Linux** | x64 | ✅ Supported | `/dev/ttyUSB0`, `/dev/ttyACM0` |
@@ -42,18 +42,22 @@ A high-performance Rust-based serial communication library for Godot 4 game engi
 ### Option 2: Build from Source
 
 #### Prerequisites
+
 - Rust (latest stable version)
 - Godot 4.2+
 - Git
 
 #### Building Steps
+
 1. Clone this repository:
+
 ```bash
 git clone https://github.com/SujithChristopher/gdserial.git
 cd gdserial
 ```
 
-2. Build the library:
+1. Build the library:
+
 ```bash
 # Linux/Mac
 ./build_release.sh
@@ -62,22 +66,32 @@ cd gdserial
 build_release.bat
 ```
 
-3. The plugin will be ready in the `addons/gdserial` folder with compiled libraries.
+1. The plugin will be ready in the `addons/gdserial` folder with compiled libraries.
 
 ## API Reference
 
-### Core Methods
+### Core Classes
 
-#### Port Management
-- `list_ports() -> Dictionary` - Get all available serial ports
+#### `GdSerial` (Basic API)
+
+Simple, PySerial-like API for direct, synchronous control of a single port.
+
+##### Port Management
+
+- `list_ports() -> Dictionary` - Get all available serial ports (index -> info dict)
 - `set_port(port_name: String)` - Set the port to use (e.g., "COM3", "/dev/ttyUSB0")
 - `set_baud_rate(rate: int)` - Set baud rate (default: 9600)
+- `set_data_bits(bits: int)` - Set data bits (6, 7, 8)
+- `set_parity(type: int)` - Set parity (0: None, 1: Odd, 2: Even)
+- `set_stop_bits(bits: int)` - Set stop bits (1, 2)
+- `set_flow_control(type: int)` - Set flow control (0: None, 1: Software, 2: Hardware)
 - `set_timeout(timeout_ms: int)` - Set read timeout in milliseconds (default: 1000)
 - `open() -> bool` - Open the serial port
 - `close()` - Close the serial port
-- `is_open() -> bool` - Check if port is open
+- `is_open() -> bool` - Check if port is open (performs active connection test)
 
-#### Data Operations
+##### Data Operations
+
 - `write(data: PackedByteArray) -> bool` - Write raw bytes
 - `write_string(data: String) -> bool` - Write string data
 - `writeline(data: String) -> bool` - Write string with newline
@@ -85,13 +99,59 @@ build_release.bat
 - `read_string(size: int) -> String` - Read and convert to string
 - `readline() -> String` - Read until newline character
 
-#### Utilities
+##### Utilities
+
 - `bytes_available() -> int` - Get number of bytes waiting to be read
 - `clear_buffer() -> bool` - Clear input/output buffers
 
-## Quick Start
+#### `GdSerialManager` (Advanced API)
 
-After installing the plugin, you can use GdSerial in any script:
+Multi-port, asynchronous manager using background threads and signals. Ideal for complex applications.
+
+##### Methods
+
+- `list_ports() -> Dictionary` - Same as `GdSerial.list_ports()`
+- `open_port(name: String, baud: int, timeout: int) -> bool` - Open a port and start reader thread
+- `close_port(name: String)` - Close and stop reader thread
+- `is_open(name: String) -> bool` - Check if a specific port is open
+- `write_port(name: String, data: PackedByteArray) -> bool` - Write raw bytes to specific port
+- `reconfigure_port(...) -> bool` - Update settings on an open port
+- `poll_events() -> Array` - **Crucial**: Call this in `_process` to emit signals and get events
+
+##### Signals
+
+- `data_received(port: String, data: PackedByteArray)` - Emitted when new data arrives
+- `port_disconnected(port: String)` - Emitted when a port is lost/disconnected
+
+After installing the plugin, you can use either the simple `GdSerial` or the advanced `GdSerialManager`.
+
+### Option A: Async Manager (Recommended for non-blocking UI)
+
+```gdscript
+extends Node
+
+var manager: GdSerialManager
+
+func _ready():
+    manager = GdSerialManager.new()
+    manager.data_received.connect(_on_data)
+    manager.port_disconnected.connect(_on_disconnect)
+    
+    if manager.open_port("COM3", 9600, 1000):
+        print("Connected to COM3")
+
+func _process(_delta):
+    # This triggers the signals above
+    manager.poll_events()
+
+func _on_data(port: String, data: PackedByteArray):
+    print("Data from ", port, ": ", data.get_string_from_utf8())
+
+func _on_disconnect(port: String):
+    print("Lost connection to ", port)
+```
+
+### Option B: Simple Blocking API
 
 ```gdscript
 extends Node
@@ -99,36 +159,23 @@ extends Node
 var serial: GdSerial
 
 func _ready():
-    # Create serial instance
     serial = GdSerial.new()
     
     # List available ports
-    print("Available ports:")
-    var ports = serial.list_ports()
-    for i in range(ports.size()):
-        var port_info = ports[i]
-        print("- ", port_info["port_name"], " (", port_info["port_type"], ")")
+    var ports: Dictionary = serial.list_ports()
+    for i in ports:
+        var info = ports[i]
+        print("- ", info["port_name"], " (", info["device_name"], ")")
     
-    # Configure and open port
-    serial.set_port("COM3")  # Adjust for your system
+    serial.set_port("COM3")
     serial.set_baud_rate(115200)
-    serial.set_timeout(1000)
     
     if serial.open():
-        print("Port opened successfully!")
-        
-        # Send command
-        serial.writeline("Hello Arduino!")
-        
-        # Wait and read response
+        serial.writeline("Hello!")
         await get_tree().create_timer(0.1).timeout
         if serial.bytes_available() > 0:
-            var response = serial.readline()
-            print("Response: ", response)
-        
+            print("Response: ", serial.readline())
         serial.close()
-    else:
-        print("Failed to open port")
 ```
 
 > **Note**: The GdSerial class becomes available automatically once the plugin is enabled. No imports needed!
@@ -136,6 +183,7 @@ func _ready():
 ## Common Use Cases
 
 ### Arduino Communication
+
 ```gdscript
 # Send sensor reading request
 serial.writeline("GET_SENSOR")
@@ -144,6 +192,7 @@ print("Sensor value: ", reading)
 ```
 
 ### AT Commands (Modems, WiFi modules)
+
 ```gdscript
 serial.writeline("AT+VERSION?")
 var version = serial.readline()
@@ -151,6 +200,7 @@ print("Module version: ", version)
 ```
 
 ### Binary Data Transfer
+
 ```gdscript
 var data = PackedByteArray([0x01, 0x02, 0x03, 0x04])
 serial.write(data)
@@ -160,17 +210,21 @@ var response = serial.read(10)
 ## Platform-Specific Notes
 
 ### Windows
+
 - Port names are typically `COM1`, `COM2`, etc.
 - Administrator privileges may be required for some devices
 
 ### Linux
+
 - Port names are typically `/dev/ttyUSB0`, `/dev/ttyACM0`, etc.
 - User must be in the `dialout` group to access serial ports:
+
   ```bash
   sudo usermod -a -G dialout $USER
   ```
 
 ### macOS
+
 - Port names are typically `/dev/tty.usbserial-*` or `/dev/tty.usbmodem*`
 
 ## Error Handling
@@ -187,24 +241,27 @@ Check the Godot console for detailed error messages when operations fail.
 ## Troubleshooting
 
 ### Port Not Found
+
 - Verify the device is connected and recognized by the OS
 - Check device manager (Windows) or `dmesg` (Linux)
 - Try different USB ports or cables
 
 ### Permission Denied (Linux)
+
 ```bash
 sudo usermod -a -G dialout $USER
 # Log out and back in for changes to take effect
 ```
 
 ### Build Issues
+
 - Ensure Rust is up to date: `rustup update`
 - Clear cargo cache: `cargo clean`
 - Check that all dependencies are available
 
 ## Plugin Structure
 
-```
+```text
 addons/gdserial/
 ├── plugin.cfg              # Plugin configuration
 ├── plugin.gd               # Plugin activation script

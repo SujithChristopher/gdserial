@@ -1,67 +1,108 @@
-# Example GDScript code showing how to use GdSerial
-# This demonstrates the PySerial-like functionality for Godot
-
 extends Node
 
+# --- CONFIGURATION CONSTANTS ---
+const PARITY_NONE = 0
+const PARITY_ODD = 1
+const PARITY_EVEN = 2
+
+const STOP_BITS_ONE = 1
+const STOP_BITS_TWO = 2
+
+const FLOW_CONTROL_NONE = 0
+const FLOW_CONTROL_SOFTWARE = 1
+const FLOW_CONTROL_HARDWARE = 2
+
+# --- BASIC USAGE (Single port, synchronous) ---
 var serial: GdSerial
 
-func _ready():
-	# Create a new GdSerial instance
+# --- ADVANCED USAGE (Multi-port, Asynchronous signals) ---
+var manager: GdSerialManager
+
+func _ready() -> void:
+	# 1. SIMPLE USAGE EXAMPLE
+	run_simple_example()
+	
+	# 2. ADVANCED USAGE EXAMPLE (Async)
+	run_manager_example()
+
+## Basic usage showing how to list, open and read a single port
+func run_simple_example() -> void:
+	print("--- Running Simple Example ---")
 	serial = GdSerial.new()
 	
-	# List all available COM ports with device names
+	# List all available COM ports with detailed info
 	print("Available COM ports:")
-	var ports = serial.list_ports()
-	for i in range(ports.size()):
-		var port_info = ports[i]
+	var ports: Dictionary = serial.list_ports()
+	for i: int in ports:
+		var port_info: Dictionary = ports[i]
 		print("Port: ", port_info["port_name"], " (", port_info["device_name"], ") - Type: ", port_info["port_type"])
 	
-	# Example: Get device name for a specific port
-	if ports.size() > 0:
-		var first_port = ports[0]["port_name"]
-		var device_name = serial.get_port_device_name(first_port)
-		print("Device name for ", first_port, ": ", device_name)
-		print("Note: Device names use USB product descriptor when available")
-		print("      Falls back to manufacturer + device type for known VIDs")
-	
 	# Configure serial port settings
-	serial.set_port("COM3")  # Change this to your actual port
+	serial.set_port("COM3") # Change this to your actual port
 	serial.set_baud_rate(9600)
-	serial.set_timeout(1000)  # 1 second timeout
+	serial.set_data_bits(8)
+	serial.set_parity(PARITY_NONE)
+	serial.set_stop_bits(STOP_BITS_ONE)
+	serial.set_flow_control(FLOW_CONTROL_NONE)
+	serial.set_timeout(1000) # 1 second timeout
 	
 	# Open the port
 	if serial.open():
 		print("Serial port opened successfully!")
 		
-		# Example: Write string data
+		# Write string data
 		serial.write_string("Hello Arduino!")
 		
-		# Example: Write line with newline
+		# Write line with newline
 		serial.writeline("AT+VERSION?")
 		
-		# Example: Read available data
-		await get_tree().create_timer(0.1).timeout  # Wait for response
+		# Wait for response (Polling approach)
+		await get_tree().create_timer(0.2).timeout
 		if serial.bytes_available() > 0:
-			var response = serial.read_string(100)
+			var response := serial.read_string(100)
 			print("Received: ", response)
 		
-		# Example: Read line by line
-		var line = serial.readline()
-		if line != "":
-			print("Line received: ", line)
-		
-		# Close the port when done
+		# Close the port
 		serial.close()
 	else:
-		print("Failed to open serial port")
+		print("Failed to open serial port (Simple)")
 
-# Example function for continuous monitoring
-func monitor_serial():
-	if not serial.is_open():
-		return
+## Advanced usage using GdSerialManager for non-blocking multi-port access
+func run_manager_example() -> void:
+	print("\n--- Running Manager Example (Async) ---")
+	manager = GdSerialManager.new()
 	
-	while serial.bytes_available() > 0:
-		var data = serial.readline()
-		if data != "":
-			print("Monitor: ", data)
-			# Process your data here
+	# Connect signals for async events
+	manager.data_received.connect(_on_serial_data)
+	manager.port_disconnected.connect(_on_serial_disconnect)
+	
+	# Open a port in async mode
+	# This starts a dedicated reader thread automatically
+	if manager.open_port("COM3", 9600, 1000):
+		print("Port COM3 opened using Manager")
+		
+		# Write data to a specific port
+		var data := "Test Manager".to_utf8_buffer()
+		manager.write_port("COM3", data)
+	else:
+		print("Failed to open COM3 with Manager")
+
+# For the Manager to work, you must call poll_events() periodically
+# (e.g., in _process) to trigger signals and receive data
+func _process(_delta: float) -> void:
+	if manager:
+		# poll_events() returns an Array of Dictionaries with event details
+		# AND emits the data_received / port_disconnected signals
+		var events: Array = manager.poll_events()
+		for event: Dictionary in events:
+			if event.has("disconnected"):
+				print("Event Polling: Port ", event["port"], " disconnected!")
+
+# Signal callback for new data
+func _on_serial_data(port: String, data: PackedByteArray) -> void:
+	var text := data.get_string_from_utf8()
+	print("Async Data from ", port, ": ", text)
+
+# Signal callback for disconnection
+func _on_serial_disconnect(port: String) -> void:
+	print("Critical: Port ", port, " was disconnected!")
