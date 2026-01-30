@@ -250,10 +250,10 @@ impl GdSerialManager {
     }
 
     #[func]
-    pub fn open_port(&mut self, port_name: GString, baud_rate: i32, timeout_ms: i32, mode: i32) -> bool {
+    pub fn open(&mut self, port_name: GString, baud_rate: i32, timeout_ms: i32, mode: i32) -> bool {
         let port_name_str = port_name.to_string();
         // Close existing instance if any
-        self.close_port(port_name.clone());
+        self.close(port_name.clone());
 
         // Convert mode int to BufferingMode (default to Raw if invalid)
         let buffering_mode = match mode {
@@ -297,7 +297,7 @@ impl GdSerialManager {
     }
 
     #[func]
-    pub fn close_port(&mut self, port_name: GString) {
+    pub fn close(&mut self, port_name: GString) {
         let name = port_name.to_string();
         if let Ok(mut flags) = self.stop_flags.lock() {
             if let Some(flag) = flags.remove(&name) {
@@ -344,7 +344,7 @@ impl GdSerialManager {
     }
 
     #[func]
-    pub fn write_port(&self, port_name: GString, data: PackedByteArray) -> bool {
+    pub fn write(&self, port_name: GString, data: PackedByteArray) -> bool {
         let Some(port_arc) = self
             .ports
             .lock()
@@ -509,7 +509,7 @@ impl GdSerialManager {
                     dict.set(GString::from("disconnected"), true);
                     out.push(&dict);
                     // Clean internal state
-                    self.close_port(GString::from(port.as_str()));
+                    self.close(GString::from(port.as_str()));
                 }
             }
         }
