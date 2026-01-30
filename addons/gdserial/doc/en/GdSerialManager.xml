@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GdSerialManager" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+		Asynchronous multi-port serial communication manager for Godot 4.
+	</brief_description>
+	<description>
+		GdSerialManager provides non-blocking, multi-port serial communication through background reader threads and event signals. It is ideal for applications requiring simultaneous communication with multiple serial devices or non-blocking UI operations.
+
+		Unlike [GdSerial] which operates synchronously on a single port, GdSerialManager manages multiple ports in parallel, emitting signals when data arrives or connections are lost. Buffering modes allow you to handle different data protocols:
+
+		Key features:
+		- Multi-port support with independent reader threads
+		- Signal-based event handling (non-blocking)
+		- Three buffering modes: RAW, LINE_BUFFERED, CUSTOM_DELIMITER
+		- Dynamic mode changes via [method set_delimiter]
+		- Thread-safe implementation using Arc&lt;Mutex&gt;
+		- Cross-platform support (Windows, Linux, macOS)
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="open">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<param index="1" name="baud_rate" type="int" />
+			<param index="2" name="timeout_ms" type="int" />
+			<description>
+				Opens a serial port with RAW buffering mode (mode 0).
+
+				Returns [code]true[/code] if the port was successfully opened, [code]false[/code] otherwise. A background reader thread is started immediately, which will emit [signal data_received] when data arrives.
+
+				RAW mode emits all data chunks immediately without buffering, making it ideal for binary data and high-speed applications.
+
+				If the port is already open, it will be closed first before opening again.
+			</description>
+		</method>
+		<method name="close">
+			<return type="void" />
+			<param index="0" name="port_name" type="String" />
+			<description>
+				Closes a serial port and stops its reader thread.
+
+				After calling this method, [method is_open] will return [code]false[/code] for this port. Any pending data in the thread's buffer will be discarded.
+			</description>
+		</method>
+		<method name="is_open">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<description>
+				Checks if a specific port is currently open.
+
+				Returns [code]true[/code] if the port is open and its reader thread is active, [code]false[/code] otherwise.
+			</description>
+		</method>
+		<method name="write">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<param index="1" name="data" type="PackedByteArray" />
+			<description>
+				Writes binary data to a specific port.
+
+				Returns [code]true[/code] if the data was successfully written and flushed to the device, [code]false[/code] if the port is not open or a write error occurred.
+
+				This method is thread-safe and can be called from any thread.
+			</description>
+		</method>
+		<method name="set_delimiter">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<param index="1" name="delimiter" type="int" />
+			<description>
+				Sets a custom delimiter byte for a port in mode 2 (CUSTOM_DELIMITER).
+
+				Returns [code]true[/code] if successful, [code]false[/code] if the port is not found.
+
+				The delimiter change takes effect immediately - the running reader thread will see the new delimiter on the next data chunk. This allows dynamic mode changes without closing and reopening the port.
+
+				Typical delimiters:
+				- 0x0A (10): Newline ('\\n')
+				- 0x0D (13): Carriage return ('\\r')
+				- 0xFF (255): Custom end marker
+				- 0x00 (0): Null terminator
+			</description>
+		</method>
+		<method name="list_ports">
+			<return type="Dictionary" />
+			<description>
+				Returns a dictionary containing information about all available serial ports on the system.
+
+				Each entry in the dictionary has an integer key (port index) and a Dictionary value containing:
+				- [code]port_name[/code] (String): The system port name (e.g., "COM3", "/dev/ttyUSB0")
+				- [code]port_type[/code] (String): Type information including USB VID/PID for USB devices
+				- [code]device_name[/code] (String): Human-readable device name from USB descriptors
+
+				Example return value:
+				[codeblock]
+				{
+				  0: {
+				    "port_name": "COM3",
+				    "port_type": "USB - VID: 2341, PID: 0043",
+				    "device_name": "Arduino Uno"
+				  }
+				}
+				[/codeblock]
+			</description>
+		</method>
+		<method name="poll_events">
+			<return type="Array" />
+			<description>
+				Processes pending events from all reader threads and emits signals.
+
+				This method MUST be called regularly from [method _process] to trigger the [signal data_received] and [signal port_disconnected] signals. It retrieves all queued events from reader threads and emits corresponding signals.
+
+				Returns an array of event dictionaries for polling-based handling:
+				- Data events: [code]{"port": "COM3", "data": PackedByteArray(...))}[/code]
+				- Disconnect events: [code]{"port": "COM3", "disconnected": true}[/code]
+
+				Typical usage:
+				[codeblock]
+				func _process(_delta):
+					manager.poll_events()
+				[/codeblock]
+			</description>
+		</method>
+		<method name="reconfigure_port">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<param index="1" name="baud_rate" type="int" />
+			<param index="2" name="data_bits" type="int" />
+			<param index="3" name="parity" type="int" />
+			<param index="4" name="stop_bits" type="int" />
+			<param index="5" name="flow_control" type="int" />
+			<param index="6" name="timeout_ms" type="int" />
+			<description>
+				Updates settings on an open port.
+
+				Returns [code]true[/code] if all settings were successfully applied, [code]false[/code] if the port is not open or any setting failed.
+
+				Parameters:
+				- [code]data_bits[/code]: 6, 7, or 8
+				- [code]parity[/code]: 0 (None), 1 (Odd), 2 (Even)
+				- [code]stop_bits[/code]: 1 or 2
+				- [code]flow_control[/code]: 0 (None), 1 (Software), 2 (Hardware)
+				- [code]timeout_ms[/code]: Read timeout in milliseconds
+
+				Changes take effect immediately while the port is open.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="data_received">
+			<param index="0" name="port" type="String" />
+			<param index="1" name="data" type="PackedByteArray" />
+			<description>
+				Emitted when data arrives from a port.
+
+				The [param port] parameter is the port name (e.g., "COM3"), and [param data] contains the received bytes. The format of [param data] depends on the port's buffering mode:
+				- RAW mode: Raw data chunks as they arrive
+				- LINE_BUFFERED mode: Complete lines terminated by newline
+				- CUSTOM_DELIMITER mode: Data terminated by the custom delimiter byte
+
+				Connect to this signal to handle incoming data asynchronously without blocking.
+			</description>
+		</signal>
+		<signal name="port_disconnected">
+			<param index="0" name="port" type="String" />
+			<description>
+				Emitted when a port is disconnected or lost.
+
+				The [param port] parameter is the name of the disconnected port. The port is automatically closed when this signal is emitted. You may call [method open] again to reconnect.
+
+				Common causes:
+				- USB device unplugged
+				- Serial connection lost
+				- Device powered off
+				- Read error (e.g., permission denied)
+			</description>
+		</signal>
+	</signals>
+</class>

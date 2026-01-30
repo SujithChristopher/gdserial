@@ -151,6 +151,60 @@
 				Default value: 9600
 			</description>
 		</method>
+		<method name="set_data_bits">
+			<return type="void" />
+			<param index="0" name="bits" type="int" />
+			<description>
+				Sets the number of data bits for the serial port.
+
+				Valid values are 6, 7, or 8. This setting takes effect the next time [method open] is called.
+
+				Default value: 8
+			</description>
+		</method>
+		<method name="set_parity">
+			<return type="void" />
+			<param index="0" name="type" type="int" />
+			<description>
+				Sets the parity mode for the serial port.
+
+				Valid values:
+				- 0: None (no parity check)
+				- 1: Odd (parity bit makes number of 1s odd)
+				- 2: Even (parity bit makes number of 1s even)
+
+				This setting takes effect the next time [method open] is called.
+
+				Default value: 0 (None)
+			</description>
+		</method>
+		<method name="set_stop_bits">
+			<return type="void" />
+			<param index="0" name="bits" type="int" />
+			<description>
+				Sets the number of stop bits for the serial port.
+
+				Valid values are 1 or 2. This setting takes effect the next time [method open] is called.
+
+				Default value: 1
+			</description>
+		</method>
+		<method name="set_flow_control">
+			<return type="void" />
+			<param index="0" name="type" type="int" />
+			<description>
+				Sets the flow control mode for the serial port.
+
+				Valid values:
+				- 0: None (no flow control)
+				- 1: Software (XON/XOFF)
+				- 2: Hardware (RTS/CTS)
+
+				This setting takes effect the next time [method open] is called.
+
+				Default value: 0 (None)
+			</description>
+		</method>
 		<method name="set_port">
 			<return type="void" />
 			<param index="0" name="port_name" type="String" />
