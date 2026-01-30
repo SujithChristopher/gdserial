@@ -1,11 +1,19 @@
 [package]
 name = "gdserial"
-version = "0.2.8"
+version = "0.3.0"
 edition = "2021"
 description = "Serial communication library for Godot 4 with PySerial-like API - Arduino, sensors, IoT integration"
 license = "MIT"
 repository = "https://github.com/SujithChristopher/gdserial"
-keywords = ["godot", "serial", "arduino", "iot", "communication", "gamedev", "sensors"]
+keywords = [
+    "godot",
+    "serial",
+    "arduino",
+    "iot",
+    "communication",
+    "gamedev",
+    "sensors",
+]
 categories = ["game-development", "hardware-support", "api-bindings"]
 authors = ["Sujith Christopher"]
 
@@ -17,7 +25,7 @@ godot = "0.4.4"
 serialport = "4.7.2"
 
 [profile.release]
-opt-level = 3            # Maximum optimization
-lto = "fat"              # Aggressive link-time optimization
-strip = true             # Strip debug symbols
-panic = "abort"          # Slightly faster
+opt-level = 3   # Maximum optimization
+lto = "fat"     # Aggressive link-time optimization
+strip = true    # Strip debug symbols
+panic = "abort" # Slightly faster

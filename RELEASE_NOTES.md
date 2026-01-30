@@ -69,7 +69,7 @@ None reported for initial release.
 
 ---
 
-# GdSerial v0.2.8 - Async Multi-Port Support
+# GdSerial v0.3.0 - Async Multi-Port Support
 
 ## 🚀 New Features
 
