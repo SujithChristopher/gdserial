@@ -66,6 +66,14 @@ enum ReaderEvent {
     Disconnected(String),   // port_name
 }
 
+// Buffering modes for the reader thread
+#[derive(Clone, Copy)]
+enum BufferingMode {
+    Raw,               // 0: Emit all chunks immediately
+    LineBuffered,      // 1: Wait for \n
+    CustomDelimiter(u8), // 2: Wait for custom delimiter
+}
+
 #[derive(GodotClass)]
 #[class(base=RefCounted)]
 pub struct GdSerialManager {
@@ -73,6 +81,7 @@ pub struct GdSerialManager {
     ports: Mutex<HashMap<String, Arc<Mutex<Box<dyn SerialPort>>>>>,
     reader_handles: Mutex<HashMap<String, thread::JoinHandle<()>>>,
     stop_flags: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    port_modes: Mutex<HashMap<String, BufferingMode>>,
     tx: Mutex<Option<mpsc::Sender<ReaderEvent>>>,
     rx: Mutex<Option<mpsc::Receiver<ReaderEvent>>>,
 }
@@ -86,6 +95,7 @@ impl IRefCounted for GdSerialManager {
             ports: Mutex::new(HashMap::new()),
             reader_handles: Mutex::new(HashMap::new()),
             stop_flags: Mutex::new(HashMap::new()),
+            port_modes: Mutex::new(HashMap::new()),
             tx: Mutex::new(Some(tx)),
             rx: Mutex::new(Some(rx)),
         }
@@ -153,12 +163,15 @@ impl GdSerialManager {
         port_name: String,
         port_arc: Arc<Mutex<Box<dyn SerialPort>>>,
         stop_flag: Arc<AtomicBool>,
+        mode: BufferingMode,
     ) -> Option<thread::JoinHandle<()>> {
         let tx_opt = self.tx.lock().ok()?.clone();
         let tx = tx_opt?;
 
         Some(thread::spawn(move || {
-            let mut buffer = [0u8; 1024];
+            let mut read_buffer = [0u8; 1024];
+            let mut line_buffer = Vec::new();
+
             loop {
                 if stop_flag.load(Ordering::Relaxed) {
                     break;
@@ -166,7 +179,7 @@ impl GdSerialManager {
 
                 let read_result = {
                     match port_arc.lock() {
-                        Ok(mut port) => port.read(&mut buffer),
+                        Ok(mut port) => port.read(&mut read_buffer),
                         Err(_) => return,
                     }
                 };
@@ -176,13 +189,53 @@ impl GdSerialManager {
                         // No data this tick, continue
                     }
                     Ok(n) => {
-                        let _ = tx.send(ReaderEvent::Data(
-                            port_name.clone(),
-                            buffer[..n].to_vec(),
-                        ));
+                        match mode {
+                            BufferingMode::Raw => {
+                                // Mode 0: Emit immediately without buffering
+                                let _ = tx.send(ReaderEvent::Data(
+                                    port_name.clone(),
+                                    read_buffer[..n].to_vec(),
+                                ));
+                            }
+                            BufferingMode::LineBuffered => {
+                                // Mode 1: Buffer until newline is found
+                                for &byte in &read_buffer[..n] {
+                                    line_buffer.push(byte);
+                                    if byte == b'\n' {
+                                        // Found complete line, emit and clear
+                                        let _ = tx.send(ReaderEvent::Data(
+                                            port_name.clone(),
+                                            line_buffer.clone(),
+                                        ));
+                                        line_buffer.clear();
+                                    }
+                                }
+                            }
+                            BufferingMode::CustomDelimiter(delim) => {
+                                // Mode 2: Buffer until custom delimiter is found
+                                for &byte in &read_buffer[..n] {
+                                    line_buffer.push(byte);
+                                    if byte == delim {
+                                        // Found delimiter, emit and clear
+                                        let _ = tx.send(ReaderEvent::Data(
+                                            port_name.clone(),
+                                            line_buffer.clone(),
+                                        ));
+                                        line_buffer.clear();
+                                    }
+                                }
+                            }
+                        }
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
-                        // normal timeout, just continue
+                        // Timeout: Emit any buffered data for non-raw modes
+                        if !line_buffer.is_empty() && !matches!(mode, BufferingMode::Raw) {
+                            let _ = tx.send(ReaderEvent::Data(
+                                port_name.clone(),
+                                line_buffer.clone(),
+                            ));
+                            line_buffer.clear();
+                        }
                     }
                     Err(_) => {
                         let _ = tx.send(ReaderEvent::Disconnected(port_name.clone()));
@@ -197,10 +250,17 @@ impl GdSerialManager {
     }
 
     #[func]
-    pub fn open_port(&mut self, port_name: GString, baud_rate: i32, timeout_ms: i32) -> bool {
+    pub fn open_port(&mut self, port_name: GString, baud_rate: i32, timeout_ms: i32, mode: i32) -> bool {
         let port_name_str = port_name.to_string();
         // Close existing instance if any
         self.close_port(port_name.clone());
+
+        // Convert mode int to BufferingMode (default to LineBuffered if invalid)
+        let buffering_mode = match mode {
+            0 => BufferingMode::Raw,
+            2 => BufferingMode::CustomDelimiter(b'\n'), // Default delimiter for mode 2
+            _ => BufferingMode::LineBuffered, // mode 1 and invalid values
+        };
 
         let builder = serialport::new(&port_name_str, baud_rate as u32)
             .timeout(Duration::from_millis(timeout_ms as u64));
@@ -216,9 +276,12 @@ impl GdSerialManager {
                 if let Ok(mut map) = self.stop_flags.lock() {
                     map.insert(port_name_str.clone(), stop_flag.clone());
                 }
+                if let Ok(mut map) = self.port_modes.lock() {
+                    map.insert(port_name_str.clone(), buffering_mode);
+                }
 
                 if let Some(handle) =
-                    self.spawn_reader_thread(port_name_str.clone(), port_arc, stop_flag)
+                    self.spawn_reader_thread(port_name_str.clone(), port_arc, stop_flag, buffering_mode)
                 {
                     if let Ok(mut hmap) = self.reader_handles.lock() {
                         hmap.insert(port_name_str, handle);
@@ -251,6 +314,10 @@ impl GdSerialManager {
         if let Ok(mut ports) = self.ports.lock() {
             ports.remove(&name);
         }
+
+        if let Ok(mut modes) = self.port_modes.lock() {
+            modes.remove(&name);
+        }
     }
 
     #[func]
@@ -260,6 +327,20 @@ impl GdSerialManager {
         } else {
             false
         }
+    }
+
+    /// Set custom delimiter for a port using mode 2 (CustomDelimiter)
+    #[func]
+    pub fn set_delimiter(&mut self, port_name: GString, delimiter: i32) -> bool {
+        let name = port_name.to_string();
+        if let Ok(mut modes) = self.port_modes.lock() {
+            if let Some(mode) = modes.get_mut(&name) {
+                *mode = BufferingMode::CustomDelimiter(delimiter as u8);
+                return true;
+            }
+        }
+        godot_error!("Port not found: {}", port_name);
+        false
     }
 
     #[func]
@@ -400,16 +481,30 @@ impl GdSerialManager {
         for ev in events {
             match ev {
                 ReaderEvent::Data(port, data) => {
-                    let mut dict = VarDictionary::new();
                     let gport = GString::from(&port);
                     let pba = PackedByteArray::from(&data[..]);
+
+                    // Emit the data_received signal
+                    self.base_mut().emit_signal(
+                        &StringName::from("data_received"),
+                        &[gport.to_variant(), pba.to_variant()],
+                    );
+
+                    let mut dict = VarDictionary::new();
                     dict.set(GString::from("port"), gport);
                     dict.set(GString::from("data"), pba);
                     out.push(&dict);
                 }
                 ReaderEvent::Disconnected(port) => {
-                    let mut dict = VarDictionary::new();
                     let gport = GString::from(&port);
+
+                    // Emit the port_disconnected signal
+                    self.base_mut().emit_signal(
+                        &StringName::from("port_disconnected"),
+                        &[gport.to_variant()],
+                    );
+
+                    let mut dict = VarDictionary::new();
                     dict.set(GString::from("port"), gport.clone());
                     dict.set(GString::from("disconnected"), true);
                     out.push(&dict);
