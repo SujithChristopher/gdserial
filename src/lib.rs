@@ -255,11 +255,11 @@ impl GdSerialManager {
         // Close existing instance if any
         self.close_port(port_name.clone());
 
-        // Convert mode int to BufferingMode (default to LineBuffered if invalid)
+        // Convert mode int to BufferingMode (default to Raw if invalid)
         let buffering_mode = match mode {
-            0 => BufferingMode::Raw,
+            1 => BufferingMode::LineBuffered,
             2 => BufferingMode::CustomDelimiter(b'\n'), // Default delimiter for mode 2
-            _ => BufferingMode::LineBuffered, // mode 1 and invalid values
+            _ => BufferingMode::Raw, // mode 0 and invalid values (default to Raw)
         };
 
         let builder = serialport::new(&port_name_str, baud_rate as u32)
