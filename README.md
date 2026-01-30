@@ -111,11 +111,12 @@ Multi-port, asynchronous manager using background threads and signals. Ideal for
 ##### Methods
 
 - `list_ports() -> Dictionary` - Same as `GdSerial.list_ports()`
-- `open_port(name: String, baud: int, timeout: int) -> bool` - Open a port and start reader thread
+- `open_port(name: String, baud: int, timeout: int, mode: int) -> bool` - Open a port with buffering mode (0: raw, 1: line-buffered, 2: custom delimiter)
 - `close_port(name: String)` - Close and stop reader thread
 - `is_open(name: String) -> bool` - Check if a specific port is open
 - `write_port(name: String, data: PackedByteArray) -> bool` - Write raw bytes to specific port
 - `reconfigure_port(...) -> bool` - Update settings on an open port
+- `set_delimiter(name: String, delimiter: int) -> bool` - Set custom delimiter byte for mode 2
 - `poll_events() -> Array` - **Crucial**: Call this in `_process` to emit signals and get events
 
 ##### Signals
@@ -136,8 +137,9 @@ func _ready():
     manager = GdSerialManager.new()
     manager.data_received.connect(_on_data)
     manager.port_disconnected.connect(_on_disconnect)
-    
-    if manager.open_port("COM3", 9600, 1000):
+
+    # Mode 0: RAW (emit all chunks), 1: LINE_BUFFERED (wait for \n), 2: CUSTOM_DELIMITER
+    if manager.open_port("COM3", 9600, 1000, 0):
         print("Connected to COM3")
 
 func _process(_delta):
@@ -185,10 +187,15 @@ func _ready():
 ### Arduino Communication
 
 ```gdscript
-# Send sensor reading request
+# Synchronous (simple, blocking)
 serial.writeline("GET_SENSOR")
 var reading = serial.readline()
 print("Sensor value: ", reading)
+```
+
+For asynchronous multi-port communication, use `GdSerialManager` with mode 1 (line-buffered):
+```gdscript
+manager.open_port("COM3", 9600, 1000, 1)  # Mode 1: wait for newline
 ```
 
 ### AT Commands (Modems, WiFi modules)
@@ -202,9 +209,18 @@ print("Module version: ", version)
 ### Binary Data Transfer
 
 ```gdscript
+# Synchronous approach
 var data = PackedByteArray([0x01, 0x02, 0x03, 0x04])
 serial.write(data)
 var response = serial.read(10)
+```
+
+For async binary protocols, use `GdSerialManager` with mode 0 (raw) or mode 2 (custom delimiter):
+```gdscript
+manager.open_port("COM3", 9600, 1000, 0)  # Mode 0: emit all chunks immediately
+# or
+manager.open_port("COM3", 9600, 1000, 2)  # Mode 2: wait for delimiter byte
+manager.set_delimiter("COM3", 0xFF)       # Set custom end marker
 ```
 
 ## Platform-Specific Notes
