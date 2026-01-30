@@ -81,7 +81,7 @@ pub struct GdSerialManager {
     ports: Mutex<HashMap<String, Arc<Mutex<Box<dyn SerialPort>>>>>,
     reader_handles: Mutex<HashMap<String, thread::JoinHandle<()>>>,
     stop_flags: Mutex<HashMap<String, Arc<AtomicBool>>>,
-    port_modes: Mutex<HashMap<String, BufferingMode>>,
+    port_modes: Mutex<HashMap<String, Arc<Mutex<BufferingMode>>>>,
     tx: Mutex<Option<mpsc::Sender<ReaderEvent>>>,
     rx: Mutex<Option<mpsc::Receiver<ReaderEvent>>>,
 }
@@ -163,7 +163,7 @@ impl GdSerialManager {
         port_name: String,
         port_arc: Arc<Mutex<Box<dyn SerialPort>>>,
         stop_flag: Arc<AtomicBool>,
-        mode: BufferingMode,
+        mode_arc: Arc<Mutex<BufferingMode>>,
     ) -> Option<thread::JoinHandle<()>> {
         let tx_opt = self.tx.lock().ok()?.clone();
         let tx = tx_opt?;
@@ -184,12 +184,18 @@ impl GdSerialManager {
                     }
                 };
 
+                // Read current mode from Arc<Mutex> (allows runtime changes via set_delimiter)
+                let current_mode = match mode_arc.lock() {
+                    Ok(m) => *m,
+                    Err(_) => continue,
+                };
+
                 match read_result {
                     Ok(0) => {
                         // No data this tick, continue
                     }
                     Ok(n) => {
-                        match mode {
+                        match current_mode {
                             BufferingMode::Raw => {
                                 // Mode 0: Emit immediately without buffering
                                 let _ = tx.send(ReaderEvent::Data(
@@ -229,7 +235,7 @@ impl GdSerialManager {
                     }
                     Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
                         // Timeout: Emit any buffered data for non-raw modes
-                        if !line_buffer.is_empty() && !matches!(mode, BufferingMode::Raw) {
+                        if !line_buffer.is_empty() && !matches!(current_mode, BufferingMode::Raw) {
                             let _ = tx.send(ReaderEvent::Data(
                                 port_name.clone(),
                                 line_buffer.clone(),
@@ -269,6 +275,7 @@ impl GdSerialManager {
             Ok(port) => {
                 let port_arc = Arc::new(Mutex::new(port));
                 let stop_flag = Arc::new(AtomicBool::new(false));
+                let mode_arc = Arc::new(Mutex::new(buffering_mode));
 
                 if let Ok(mut map) = self.ports.lock() {
                     map.insert(port_name_str.clone(), port_arc.clone());
@@ -277,11 +284,11 @@ impl GdSerialManager {
                     map.insert(port_name_str.clone(), stop_flag.clone());
                 }
                 if let Ok(mut map) = self.port_modes.lock() {
-                    map.insert(port_name_str.clone(), buffering_mode);
+                    map.insert(port_name_str.clone(), mode_arc.clone());
                 }
 
                 if let Some(handle) =
-                    self.spawn_reader_thread(port_name_str.clone(), port_arc, stop_flag, buffering_mode)
+                    self.spawn_reader_thread(port_name_str.clone(), port_arc, stop_flag, mode_arc)
                 {
                     if let Ok(mut hmap) = self.reader_handles.lock() {
                         hmap.insert(port_name_str, handle);
@@ -333,10 +340,12 @@ impl GdSerialManager {
     #[func]
     pub fn set_delimiter(&mut self, port_name: GString, delimiter: i32) -> bool {
         let name = port_name.to_string();
-        if let Ok(mut modes) = self.port_modes.lock() {
-            if let Some(mode) = modes.get_mut(&name) {
-                *mode = BufferingMode::CustomDelimiter(delimiter as u8);
-                return true;
+        if let Ok(modes) = self.port_modes.lock() {
+            if let Some(mode_arc) = modes.get(&name) {
+                if let Ok(mut mode) = mode_arc.lock() {
+                    *mode = BufferingMode::CustomDelimiter(delimiter as u8);
+                    return true;
+                }
             }
         }
         godot_error!("Port not found: {}", port_name);
