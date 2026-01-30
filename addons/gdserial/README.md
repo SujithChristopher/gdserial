@@ -14,6 +14,8 @@ A Rust-based serial communication library for Godot 4 that provides PySerial-lik
 
 ## Quick Start
 
+### Basic usage (GdSerial)
+
 ```gdscript
 extends Node
 
@@ -21,20 +23,30 @@ var serial: GdSerial
 
 func _ready():
     serial = GdSerial.new()
-    
-    # List available ports
-    var ports = serial.list_ports()
-    print("Available ports: ", ports)
-    
-    # Configure and connect
-    serial.set_port("COM3")  # Adjust for your system
+    serial.set_port("COM3")
     serial.set_baud_rate(9600)
     
     if serial.open():
-        serial.writeline("Hello Arduino!")
-        var response = serial.readline()
-        print("Response: ", response)
+        serial.writeline("Hello!")
         serial.close()
+```
+
+### Async usage (GdSerialManager)
+
+```gdscript
+extends Node
+
+var manager: GdSerialManager
+
+func _ready():
+    manager = GdSerialManager.new()
+    manager.data_received.connect(func(port, data): 
+        print("Data: ", data.get_string_from_utf8())
+    )
+    manager.open_port("COM3", 9600, 1000)
+
+func _process(_delta):
+    manager.poll_events()
 ```
 
 ## API Reference

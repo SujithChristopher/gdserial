@@ -1,6 +1,10 @@
 use godot::prelude::*;
 use serialport::{DataBits, ErrorKind, FlowControl, Parity, SerialPort, SerialPortType, StopBits};
-use std::io::{self, Read};
+use std::collections::HashMap;
+use std::io::{self, Read, Write};
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 fn get_usb_device_name(
@@ -44,7 +48,8 @@ unsafe impl ExtensionLibrary for GdSerialExtension {}
 #[class(base=RefCounted)]
 pub struct GdSerial {
     base: Base<RefCounted>,
-    port: Option<Box<dyn SerialPort>>,
+    // Wrapped in Arc<Mutex<...>> so the handle can be shared safely across threads
+    port: Option<Arc<Mutex<Box<dyn SerialPort>>>>,
     port_name: String,
     baud_rate: u32,
     data_bits: DataBits,
@@ -53,6 +58,369 @@ pub struct GdSerial {
     flow_control: FlowControl,
     timeout: Duration,
     is_connected: bool, // Track connection state
+}
+
+// Message coming from reader thread to Godot thread
+enum ReaderEvent {
+    Data(String, Vec<u8>), // (port_name, data)
+    Disconnected(String),   // port_name
+}
+
+#[derive(GodotClass)]
+#[class(base=RefCounted)]
+pub struct GdSerialManager {
+    base: Base<RefCounted>,
+    ports: Mutex<HashMap<String, Arc<Mutex<Box<dyn SerialPort>>>>>,
+    reader_handles: Mutex<HashMap<String, thread::JoinHandle<()>>>,
+    stop_flags: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    tx: Mutex<Option<mpsc::Sender<ReaderEvent>>>,
+    rx: Mutex<Option<mpsc::Receiver<ReaderEvent>>>,
+}
+
+#[godot_api]
+impl IRefCounted for GdSerialManager {
+    fn init(base: Base<RefCounted>) -> Self {
+        let (tx, rx) = mpsc::channel();
+        Self {
+            base,
+            ports: Mutex::new(HashMap::new()),
+            reader_handles: Mutex::new(HashMap::new()),
+            stop_flags: Mutex::new(HashMap::new()),
+            tx: Mutex::new(Some(tx)),
+            rx: Mutex::new(Some(rx)),
+        }
+    }
+}
+
+#[godot_api]
+impl GdSerialManager {
+    #[signal]
+    fn data_received(port: GString, data: PackedByteArray);
+    #[signal]
+    fn port_disconnected(port: GString);
+
+    /// List available ports (same structure as GdSerial::list_ports)
+    #[func]
+    pub fn list_ports(&self) -> VarDictionary {
+        let mut ports_dict = VarDictionary::new();
+
+        match serialport::available_ports() {
+            Ok(ports) => {
+                for (i, port) in ports.iter().enumerate() {
+                    let mut port_info = VarDictionary::new();
+                    port_info.set(GString::from("port_name"), GString::from(&port.port_name));
+
+                    let (port_type, device_name) = match &port.port_type {
+                        SerialPortType::UsbPort(usb_info) => {
+                            let port_type = format!(
+                                "USB - VID: {:04X}, PID: {:04X}",
+                                usb_info.vid, usb_info.pid
+                            );
+                            let device_name = get_usb_device_name(
+                                usb_info.vid,
+                                usb_info.pid,
+                                &usb_info.manufacturer,
+                                &usb_info.product,
+                            );
+                            (port_type, device_name)
+                        }
+                        SerialPortType::PciPort => {
+                            ("PCI".to_string(), "PCI Serial Port".to_string())
+                        }
+                        SerialPortType::BluetoothPort => {
+                            ("Bluetooth".to_string(), "Bluetooth Serial Port".to_string())
+                        }
+                        SerialPortType::Unknown => {
+                            ("Unknown".to_string(), "Unknown Serial Device".to_string())
+                        }
+                    };
+
+                    port_info.set(GString::from("port_type"), GString::from(&port_type));
+                    port_info.set(GString::from("device_name"), GString::from(&device_name));
+                    ports_dict.set(i as i32, port_info);
+                }
+            }
+            Err(e) => {
+                godot_error!("Failed to list ports: {}", e);
+            }
+        }
+
+        ports_dict
+    }
+
+    fn spawn_reader_thread(
+        &self,
+        port_name: String,
+        port_arc: Arc<Mutex<Box<dyn SerialPort>>>,
+        stop_flag: Arc<AtomicBool>,
+    ) -> Option<thread::JoinHandle<()>> {
+        let tx_opt = self.tx.lock().ok()?.clone();
+        let tx = tx_opt?;
+
+        Some(thread::spawn(move || {
+            let mut buffer = [0u8; 1024];
+            loop {
+                if stop_flag.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                let read_result = {
+                    match port_arc.lock() {
+                        Ok(mut port) => port.read(&mut buffer),
+                        Err(_) => return,
+                    }
+                };
+
+                match read_result {
+                    Ok(0) => {
+                        // No data this tick, continue
+                    }
+                    Ok(n) => {
+                        let _ = tx.send(ReaderEvent::Data(
+                            port_name.clone(),
+                            buffer[..n].to_vec(),
+                        ));
+                    }
+                    Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
+                        // normal timeout, just continue
+                    }
+                    Err(_) => {
+                        let _ = tx.send(ReaderEvent::Disconnected(port_name.clone()));
+                        break;
+                    }
+                }
+
+                // Small sleep to avoid busy loop on WouldBlock if timeout == 0
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }))
+    }
+
+    #[func]
+    pub fn open_port(&mut self, port_name: GString, baud_rate: i32, timeout_ms: i32) -> bool {
+        let port_name_str = port_name.to_string();
+        // Close existing instance if any
+        self.close_port(port_name.clone());
+
+        let builder = serialport::new(&port_name_str, baud_rate as u32)
+            .timeout(Duration::from_millis(timeout_ms as u64));
+
+        match builder.open() {
+            Ok(port) => {
+                let port_arc = Arc::new(Mutex::new(port));
+                let stop_flag = Arc::new(AtomicBool::new(false));
+
+                if let Ok(mut map) = self.ports.lock() {
+                    map.insert(port_name_str.clone(), port_arc.clone());
+                }
+                if let Ok(mut map) = self.stop_flags.lock() {
+                    map.insert(port_name_str.clone(), stop_flag.clone());
+                }
+
+                if let Some(handle) =
+                    self.spawn_reader_thread(port_name_str.clone(), port_arc, stop_flag)
+                {
+                    if let Ok(mut hmap) = self.reader_handles.lock() {
+                        hmap.insert(port_name_str, handle);
+                    }
+                }
+                true
+            }
+            Err(e) => {
+                godot_error!("Failed to open port {}: {}", port_name, e);
+                false
+            }
+        }
+    }
+
+    #[func]
+    pub fn close_port(&mut self, port_name: GString) {
+        let name = port_name.to_string();
+        if let Ok(mut flags) = self.stop_flags.lock() {
+            if let Some(flag) = flags.remove(&name) {
+                flag.store(true, Ordering::Relaxed);
+            }
+        }
+
+        if let Ok(mut handles) = self.reader_handles.lock() {
+            if let Some(handle) = handles.remove(&name) {
+                let _ = handle.join();
+            }
+        }
+
+        if let Ok(mut ports) = self.ports.lock() {
+            ports.remove(&name);
+        }
+    }
+
+    #[func]
+    pub fn is_open(&self, port_name: GString) -> bool {
+        if let Ok(ports) = self.ports.lock() {
+            ports.contains_key(&port_name.to_string())
+        } else {
+            false
+        }
+    }
+
+    #[func]
+    pub fn write_port(&self, port_name: GString, data: PackedByteArray) -> bool {
+        let Some(port_arc) = self
+            .ports
+            .lock()
+            .ok()
+            .and_then(|m| m.get(&port_name.to_string()).cloned())
+        else {
+            godot_error!("Port not open");
+            return false;
+        };
+
+        let write_result = {
+            match port_arc.lock() {
+                Ok(mut port) => {
+                    let bytes = data.to_vec();
+                    match port.write_all(&bytes) {
+                        Ok(_) => match port.flush() {
+                            Ok(_) => true,
+                            Err(e) => {
+                                godot_error!("Failed to flush port {}: {}", port_name, e);
+                                false
+                            }
+                        },
+                        Err(e) => {
+                            godot_error!("Failed to write to port {}: {}", port_name, e);
+                            false
+                        }
+                    }
+                }
+                Err(e) => {
+                    godot_error!("Port mutex poisoned: {}", e);
+                    false
+                }
+            }
+        };
+
+        write_result
+    }
+
+    #[func]
+    pub fn reconfigure_port(
+        &self,
+        port_name: GString,
+        baud_rate: i32,
+        data_bits: u8,
+        parity: i32,
+        stop_bits: u8,
+        flow_control: u8,
+        timeout_ms: i32,
+    ) -> bool {
+        let Some(port_arc) = self
+            .ports
+            .lock()
+            .ok()
+            .and_then(|m| m.get(&port_name.to_string()).cloned())
+        else {
+            godot_error!("Port not open");
+            return false;
+        };
+
+        let mut port = match port_arc.lock() {
+            Ok(p) => p,
+            Err(e) => {
+                godot_error!("Port mutex poisoned: {}", e);
+                return false;
+            }
+        };
+
+        // Apply settings; log errors but try to continue
+        let mut ok = true;
+        if let Err(e) = port.set_baud_rate(baud_rate as u32) {
+            ok = false;
+            godot_error!("Failed to set baud_rate: {}", e);
+        }
+        if let Err(e) = port.set_timeout(Duration::from_millis(timeout_ms as u64)) {
+            ok = false;
+            godot_error!("Failed to set timeout: {}", e);
+        }
+        let db = match data_bits {
+            6 => DataBits::Six,
+            7 => DataBits::Seven,
+            _ => DataBits::Eight,
+        };
+        if let Err(e) = port.set_data_bits(db) {
+            ok = false;
+            godot_error!("Failed to set data bits: {}", e);
+        }
+        let pb = match parity {
+            1 => Parity::Odd,
+            2 => Parity::Even,
+            _ => Parity::None,
+        };
+        if let Err(e) = port.set_parity(pb) {
+            ok = false;
+            godot_error!("Failed to set parity: {}", e);
+        }
+        let sb = match stop_bits {
+            2 => StopBits::Two,
+            _ => StopBits::One,
+        };
+        if let Err(e) = port.set_stop_bits(sb) {
+            ok = false;
+            godot_error!("Failed to set stop bits: {}", e);
+        }
+        let fc = match flow_control {
+            1 => FlowControl::Software,
+            2 => FlowControl::Hardware,
+            _ => FlowControl::None,
+        };
+        if let Err(e) = port.set_flow_control(fc) {
+            ok = false;
+            godot_error!("Failed to set flow control: {}", e);
+        }
+        ok
+    }
+
+    /// Drain async reader queue, emit signals, and also return events as array of dictionaries
+    #[func]
+    pub fn poll_events(&mut self) -> Array<VarDictionary> {
+        let mut out: Array<VarDictionary> = Array::new();
+        let mut events = Vec::new();
+
+        if let Ok(rx_opt) = self.rx.lock() {
+            if let Some(rx) = rx_opt.as_ref() {
+                loop {
+                    match rx.try_recv() {
+                        Ok(ev) => events.push(ev),
+                        Err(mpsc::TryRecvError::Empty) => break,
+                        Err(mpsc::TryRecvError::Disconnected) => break,
+                    }
+                }
+            }
+        }
+
+        for ev in events {
+            match ev {
+                ReaderEvent::Data(port, data) => {
+                    let mut dict = VarDictionary::new();
+                    let gport = GString::from(&port);
+                    let pba = PackedByteArray::from(&data[..]);
+                    dict.set(GString::from("port"), gport);
+                    dict.set(GString::from("data"), pba);
+                    out.push(&dict);
+                }
+                ReaderEvent::Disconnected(port) => {
+                    let mut dict = VarDictionary::new();
+                    let gport = GString::from(&port);
+                    dict.set(GString::from("port"), gport.clone());
+                    dict.set(GString::from("disconnected"), true);
+                    out.push(&dict);
+                    // Clean internal state
+                    self.close_port(GString::from(port.as_str()));
+                }
+            }
+        }
+
+        out
+    }
 }
 
 #[godot_api]
@@ -126,21 +494,31 @@ impl GdSerial {
 
     /// Actively test if the port is still connected by attempting a non-destructive operation
     fn test_connection(&mut self) -> bool {
-        if let Some(ref mut port) = self.port {
-            // Try bytes_to_read as the primary test - it's the most reliable
-            match port.bytes_to_read() {
+        let Some(port_arc) = self.port.as_ref().map(Arc::clone) else {
+            return false;
+        };
+
+        let connected = match port_arc.lock() {
+            Ok(port) => match port.bytes_to_read() {
                 Ok(_) => true,
                 Err(e) => {
                     // Any error here likely means disconnection
                     godot_print!("Connection test failed: {} - marking as disconnected", e);
-                    self.port = None;
-                    self.is_connected = false;
                     false
                 }
+            },
+            Err(e) => {
+                godot_error!("Port mutex poisoned: {}", e);
+                false
             }
-        } else {
-            false
+        };
+
+        if !connected {
+            self.port = None;
+            self.is_connected = false;
         }
+
+        connected
     }
 
     #[func]
@@ -220,13 +598,16 @@ impl GdSerial {
     }
 
     #[func]
-    pub fn set_parity(&mut self, parity: bool) {
+    pub fn set_parity(&mut self, parity: i32) {
         match parity {
-            false => {
-                self.parity = Parity::None;
-            }
-            true => {
+            1 => {
                 self.parity = Parity::Odd;
+            }
+            2 => {
+                self.parity = Parity::Even;
+            }
+            _ => {
+                self.parity = Parity::None;
             }
         }
     }
@@ -285,7 +666,7 @@ impl GdSerial {
             .open()
         {
             Ok(port) => {
-                self.port = Some(port);
+                self.port = Some(Arc::new(Mutex::new(port)));
                 self.is_connected = true;
                 true
             }
@@ -324,30 +705,41 @@ impl GdSerial {
             return false;
         }
 
-        match &mut self.port {
-            Some(port) => {
-                let bytes = data.to_vec();
-                match port.write_all(&bytes) {
-                    Ok(_) => match port.flush() {
-                        Ok(_) => true,
+        let Some(port_arc) = self.port.as_ref().map(Arc::clone) else {
+            godot_error!("Port not open");
+            return false;
+        };
+
+        let write_result = {
+            match port_arc.lock() {
+                Ok(mut port) => {
+                    let bytes = data.to_vec();
+                    match port.write_all(&bytes) {
+                        Ok(_) => match port.flush() {
+                            Ok(_) => true,
+                            Err(e) => {
+                                self.handle_potential_io_disconnection(&e);
+                                godot_error!("Failed to flush port: {}", e);
+                                false
+                            }
+                        },
                         Err(e) => {
                             self.handle_potential_io_disconnection(&e);
-                            godot_error!("Failed to flush port: {}", e);
+                            godot_error!("Failed to write to port: {}", e);
                             false
                         }
-                    },
-                    Err(e) => {
-                        self.handle_potential_io_disconnection(&e);
-                        godot_error!("Failed to write to port: {}", e);
-                        false
                     }
                 }
+                Err(e) => {
+                    godot_error!("Port mutex poisoned: {}", e);
+                    self.port = None;
+                    self.is_connected = false;
+                    false
+                }
             }
-            None => {
-                godot_error!("Port not open");
-                false
-            }
-        }
+        };
+
+        write_result
     }
 
     #[func]
@@ -372,31 +764,42 @@ impl GdSerial {
             return PackedByteArray::new();
         }
 
-        match &mut self.port {
-            Some(port) => {
-                let mut buffer = vec![0; size as usize];
-                match port.read(&mut buffer) {
-                    Ok(bytes_read) => {
-                        buffer.truncate(bytes_read);
-                        PackedByteArray::from(&buffer[..])
-                    }
-                    Err(e) => {
-                        // Don't treat timeout as disconnection
-                        if e.kind() != io::ErrorKind::TimedOut
-                            && e.kind() != io::ErrorKind::WouldBlock
-                        {
-                            self.handle_potential_io_disconnection(&e);
-                            godot_error!("Failed to read from port: {}", e);
+        let Some(port_arc) = self.port.as_ref().map(Arc::clone) else {
+            godot_error!("Port not open");
+            return PackedByteArray::new();
+        };
+
+        let read_result = {
+            match port_arc.lock() {
+                Ok(mut port) => {
+                    let mut buffer = vec![0; size as usize];
+                    match port.read(&mut buffer) {
+                        Ok(bytes_read) => {
+                            buffer.truncate(bytes_read);
+                            PackedByteArray::from(&buffer[..])
                         }
-                        PackedByteArray::new()
+                        Err(e) => {
+                            // Don't treat timeout as disconnection
+                            if e.kind() != io::ErrorKind::TimedOut
+                                && e.kind() != io::ErrorKind::WouldBlock
+                            {
+                                self.handle_potential_io_disconnection(&e);
+                                godot_error!("Failed to read from port: {}", e);
+                            }
+                            PackedByteArray::new()
+                        }
                     }
                 }
+                Err(e) => {
+                    godot_error!("Port mutex poisoned: {}", e);
+                    self.port = None;
+                    self.is_connected = false;
+                    PackedByteArray::new()
+                }
             }
-            None => {
-                godot_error!("Port not open");
-                PackedByteArray::new()
-            }
-        }
+        };
+
+        read_result
     }
 
     #[func]
@@ -418,51 +821,62 @@ impl GdSerial {
             return GString::new();
         }
 
-        match &mut self.port {
-            Some(port) => {
-                let mut line = String::new();
-                let mut byte = [0u8; 1];
+        let Some(port_arc) = self.port.as_ref().map(Arc::clone) else {
+            godot_error!("Port not open");
+            return GString::new();
+        };
 
-                loop {
-                    match port.read(&mut byte) {
-                        Ok(0) => {
-                            // No data available, return what we have so far
-                            break;
-                        }
-                        Ok(_) => {
-                            let ch = byte[0] as char;
-                            if ch == '\n' {
-                                break;
-                            } else if ch != '\r' {
-                                line.push(ch);
-                            }
-                        }
-                        Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
-                            // Timeout occurred, return what we have so far
-                            break;
-                        }
-                        Err(e) => {
-                            if Self::is_io_disconnection_error(&e) {
-                                self.handle_potential_io_disconnection(&e);
-                            }
+        let line_result = {
+            match port_arc.lock() {
+                Ok(mut port) => {
+                    let mut line = String::new();
+                    let mut byte = [0u8; 1];
 
-                            if line.is_empty() && e.kind() != io::ErrorKind::WouldBlock {
-                                godot_error!("Failed to read line: {}", e);
-                                return GString::new();
-                            } else {
+                    loop {
+                        match port.read(&mut byte) {
+                            Ok(0) => {
+                                // No data available, return what we have so far
                                 break;
+                            }
+                            Ok(_) => {
+                                let ch = byte[0] as char;
+                                if ch == '\n' {
+                                    break;
+                                } else if ch != '\r' {
+                                    line.push(ch);
+                                }
+                            }
+                            Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
+                                // Timeout occurred, return what we have so far
+                                break;
+                            }
+                            Err(e) => {
+                                if Self::is_io_disconnection_error(&e) {
+                                    self.handle_potential_io_disconnection(&e);
+                                }
+
+                                if line.is_empty() && e.kind() != io::ErrorKind::WouldBlock {
+                                    godot_error!("Failed to read line: {}", e);
+                                    return GString::new();
+                                } else {
+                                    break;
+                                }
                             }
                         }
                     }
-                }
 
-                GString::from(&line)
+                    GString::from(&line)
+                }
+                Err(e) => {
+                    godot_error!("Port mutex poisoned: {}", e);
+                    self.port = None;
+                    self.is_connected = false;
+                    GString::new()
+                }
             }
-            None => {
-                godot_error!("Port not open");
-                GString::new()
-            }
-        }
+        };
+
+        line_result
     }
 
     #[func]
@@ -472,9 +886,13 @@ impl GdSerial {
             return 0;
         }
 
-        match &mut self.port {
-            Some(port) => {
-                match port.bytes_to_read() {
+        let Some(port_arc) = self.port.as_ref().map(Arc::clone) else {
+            return 0;
+        };
+
+        let bytes_result = {
+            match port_arc.lock() {
+                Ok(port) => match port.bytes_to_read() {
                     Ok(bytes) => bytes as u32,
                     Err(e) => {
                         // Any error in bytes_to_read likely means the port is in a bad state
@@ -487,10 +905,17 @@ impl GdSerial {
                         self.is_connected = false;
                         0
                     }
+                },
+                Err(e) => {
+                    godot_error!("Port mutex poisoned: {}", e);
+                    self.port = None;
+                    self.is_connected = false;
+                    0
                 }
             }
-            None => 0,
-        }
+        };
+
+        bytes_result
     }
 
     #[func]
@@ -500,19 +925,30 @@ impl GdSerial {
             return false;
         }
 
-        match &mut self.port {
-            Some(port) => match port.clear(serialport::ClearBuffer::All) {
-                Ok(_) => true,
+        let Some(port_arc) = self.port.as_ref().map(Arc::clone) else {
+            godot_error!("Port not open");
+            return false;
+        };
+
+        let clear_result = {
+            match port_arc.lock() {
+                Ok(port) => match port.clear(serialport::ClearBuffer::All) {
+                    Ok(_) => true,
+                    Err(e) => {
+                        self.handle_potential_disconnection(&e);
+                        godot_error!("Failed to clear buffer: {}", e);
+                        false
+                    }
+                },
                 Err(e) => {
-                    self.handle_potential_disconnection(&e);
-                    godot_error!("Failed to clear buffer: {}", e);
+                    godot_error!("Port mutex poisoned: {}", e);
+                    self.port = None;
+                    self.is_connected = false;
                     false
                 }
-            },
-            None => {
-                godot_error!("Port not open");
-                false
             }
-        }
+        };
+
+        clear_result
     }
 }
