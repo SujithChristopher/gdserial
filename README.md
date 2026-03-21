@@ -2,6 +2,9 @@
 
 [![GitHub Downloads](https://img.shields.io/github/downloads/SujithChristopher/gdserial/total?style=flat-square&label=Downloads&color=blue)](https://github.com/SujithChristopher/gdserial/releases)
 [![Latest Release](https://img.shields.io/github/v/release/SujithChristopher/gdserial?style=flat-square&label=Latest)](https://github.com/SujithChristopher/gdserial/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](https://github.com/SujithChristopher/gdserial/blob/main/LICENSE)
+[![Godot 4](https://img.shields.io/badge/Godot-4.x-478CBF?style=flat-square&logo=godot-engine&logoColor=white)](https://godotengine.org)
+[![Rust 2021](https://img.shields.io/badge/Rust-2021_edition-orange?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
 
 <img src="addons/gdserial/icon.png" alt="GdSerial Icon" width="64" height="64" align="left" style="margin-right: 20px;">
 
