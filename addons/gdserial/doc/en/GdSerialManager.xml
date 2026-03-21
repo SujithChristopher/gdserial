@@ -18,6 +18,17 @@
 	</description>
 	<tutorials>
 	</tutorials>
+	<constants>
+		<constant name="MODE_RAW" value="0">
+			Buffering mode: emit all data chunks immediately as they arrive. Ideal for binary data and high-speed applications.
+		</constant>
+		<constant name="MODE_LINE_BUFFERED" value="1">
+			Buffering mode: buffer incoming bytes until a newline character ([code]\n[/code]) is received, then emit the complete line.
+		</constant>
+		<constant name="MODE_CUSTOM_DELIMITER" value="2">
+			Buffering mode: buffer incoming bytes until a custom delimiter byte is received. Set the delimiter via [method set_delimiter].
+		</constant>
+	</constants>
 	<methods>
 		<method name="open">
 			<return type="bool" />
@@ -25,11 +36,34 @@
 			<param index="1" name="baud_rate" type="int" />
 			<param index="2" name="timeout_ms" type="int" />
 			<description>
-				Opens a serial port with RAW buffering mode (mode 0).
+				Opens a serial port with RAW buffering mode ([constant MODE_RAW], the default).
 
 				Returns [code]true[/code] if the port was successfully opened, [code]false[/code] otherwise. A background reader thread is started immediately, which will emit [signal data_received] when data arrives.
 
 				RAW mode emits all data chunks immediately without buffering, making it ideal for binary data and high-speed applications.
+
+				If the port is already open, it will be closed first before opening again.
+
+				To open with a specific buffering mode, use [method open_buffered].
+			</description>
+		</method>
+		<method name="open_buffered">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<param index="1" name="baud_rate" type="int" />
+			<param index="2" name="timeout_ms" type="int" />
+			<param index="3" name="mode" type="int" />
+			<description>
+				Opens a serial port with an explicit buffering mode.
+
+				Returns [code]true[/code] if the port was successfully opened, [code]false[/code] otherwise.
+
+				Use the [constant MODE_RAW], [constant MODE_LINE_BUFFERED], or [constant MODE_CUSTOM_DELIMITER] constants for the [param mode] parameter:
+				[codeblock]
+				manager.open_buffered("COM3", 9600, 1000, GdSerialManager.MODE_LINE_BUFFERED)
+				[/codeblock]
+
+				For [constant MODE_CUSTOM_DELIMITER], the default delimiter is [code]\n[/code] (0x0A). Change it after opening with [method set_delimiter].
 
 				If the port is already open, it will be closed first before opening again.
 			</description>

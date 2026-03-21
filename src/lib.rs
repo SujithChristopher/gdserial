@@ -104,6 +104,16 @@ impl IRefCounted for GdSerialManager {
 
 #[godot_api]
 impl GdSerialManager {
+    /// Buffering mode: emit all data chunks immediately (default)
+    #[constant]
+    const MODE_RAW: i64 = 0;
+    /// Buffering mode: buffer until newline character (\n)
+    #[constant]
+    const MODE_LINE_BUFFERED: i64 = 1;
+    /// Buffering mode: buffer until a custom delimiter byte (set via set_delimiter)
+    #[constant]
+    const MODE_CUSTOM_DELIMITER: i64 = 2;
+
     #[signal]
     fn data_received(port: GString, data: PackedByteArray);
     #[signal]
@@ -255,8 +265,20 @@ impl GdSerialManager {
         }))
     }
 
+    /// Opens a serial port with RAW buffering mode (mode 0, default).
     #[func]
-    pub fn open(&mut self, port_name: GString, baud_rate: i32, timeout_ms: i32, mode: i32) -> bool {
+    pub fn open(&mut self, port_name: GString, baud_rate: i32, timeout_ms: i32) -> bool {
+        self.open_impl(port_name, baud_rate, timeout_ms, 0)
+    }
+
+    /// Opens a serial port with an explicit buffering mode.
+    /// Use the MODE_* constants (MODE_RAW=0, MODE_LINE_BUFFERED=1, MODE_CUSTOM_DELIMITER=2).
+    #[func]
+    pub fn open_buffered(&mut self, port_name: GString, baud_rate: i32, timeout_ms: i32, mode: i32) -> bool {
+        self.open_impl(port_name, baud_rate, timeout_ms, mode)
+    }
+
+    fn open_impl(&mut self, port_name: GString, baud_rate: i32, timeout_ms: i32, mode: i32) -> bool {
         let port_name_str = port_name.to_string();
         // Close existing instance if any
         self.close(port_name.clone());
