@@ -1,5 +1,8 @@
 # GdSerial - Serial Communication Library for Godot 4
 
+[![GitHub Downloads](https://img.shields.io/github/downloads/SujithChristopher/gdserial/total?style=flat-square&label=Downloads&color=blue)](https://github.com/SujithChristopher/gdserial/releases)
+[![Latest Release](https://img.shields.io/github/v/release/SujithChristopher/gdserial?style=flat-square&label=Latest)](https://github.com/SujithChristopher/gdserial/releases/latest)
+
 <img src="addons/gdserial/icon.png" alt="GdSerial Icon" width="64" height="64" align="left" style="margin-right: 20px;">
 
 A high-performance Rust-based serial communication library for Godot 4 game engine, providing PySerial-like functionality through gdext. Enable direct hardware communication with Arduino, ESP32, sensors, modems, and IoT devices in your Godot games and applications.
