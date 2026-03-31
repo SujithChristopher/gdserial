@@ -328,6 +328,14 @@ impl GdSerialManager {
     #[func]
     pub fn close(&mut self, port_name: GString) {
         let name = port_name.to_string();
+        
+        // Check if port was actually open before emitting signal
+        let was_open = if let Ok(ports) = self.ports.lock() {
+            ports.contains_key(&name)
+        } else {
+            false
+        };
+        
         if let Ok(mut flags) = self.stop_flags.lock() {
             if let Some(flag) = flags.remove(&name) {
                 flag.store(true, Ordering::Relaxed);
@@ -346,6 +354,14 @@ impl GdSerialManager {
 
         if let Ok(mut modes) = self.port_modes.lock() {
             modes.remove(&name);
+        }
+        
+        // Emit port_disconnected signal if the port was actually open
+        if was_open {
+            self.base_mut().emit_signal(
+                &StringName::from("port_disconnected"),
+                &[port_name.to_variant()],
+            );
         }
     }
 
