@@ -328,14 +328,7 @@ impl GdSerialManager {
     #[func]
     pub fn close(&mut self, port_name: GString) {
         let name = port_name.to_string();
-        
-        // Check if port was actually open before emitting signal
-        let was_open = if let Ok(ports) = self.ports.lock() {
-            ports.contains_key(&name)
-        } else {
-            false
-        };
-        
+
         if let Ok(mut flags) = self.stop_flags.lock() {
             if let Some(flag) = flags.remove(&name) {
                 flag.store(true, Ordering::Relaxed);
@@ -348,15 +341,16 @@ impl GdSerialManager {
             }
         }
 
-        if let Ok(mut ports) = self.ports.lock() {
-            ports.remove(&name);
-        }
+        let was_open = if let Ok(mut ports) = self.ports.lock() {
+            ports.remove(&name).is_some()
+        } else {
+            false
+        };
 
         if let Ok(mut modes) = self.port_modes.lock() {
             modes.remove(&name);
         }
-        
-        // Emit port_disconnected signal if the port was actually open
+
         if was_open {
             self.base_mut().emit_signal(
                 &StringName::from("port_disconnected"),
@@ -545,17 +539,10 @@ impl GdSerialManager {
                 ReaderEvent::Disconnected(port) => {
                     let gport = GString::from(&port);
 
-                    // Emit the port_disconnected signal
-                    self.base_mut().emit_signal(
-                        &StringName::from("port_disconnected"),
-                        &[gport.to_variant()],
-                    );
-
                     let mut dict = VarDictionary::new();
                     dict.set(GString::from("port"), gport.clone());
                     dict.set(GString::from("disconnected"), true);
                     out.push(&dict);
-                    // Clean internal state
                     self.close(GString::from(port.as_str()));
                 }
             }
