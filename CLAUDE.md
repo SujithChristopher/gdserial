@@ -68,6 +68,10 @@ Both classes detect device unplugging. `GdSerial` has `test_connection()` called
 
 Godot class reference XML lives in `addons/gdserial/doc/en/`. When adding or changing any `#[func]` method, update the corresponding XML — it appears in Godot's built-in help.
 
+**Translations:** In-editor doc translations live in `addons/gdserial/doc/{locale}/` (XML files directly inside, no subfolder). Each locale must also be registered in the `[documentation]` section of `addons/gdserial/gdserial.gdextension`. Locale codes use underscores (`zh_CN`, `pt_BR`); translated README filenames use hyphens (`README.zh-CN.md`, `README.pt-BR.md`).
+
+**Two READMEs:** `README.md` (root, full API reference) and `addons/gdserial/README.md` (brief addon-only copy). API changes go in the root one.
+
 ## Version Management
 
 Update version in **both** of these files when releasing:
