@@ -6,6 +6,8 @@
 [![Godot 4](https://img.shields.io/badge/Godot-4.x-478CBF?style=flat-square&logo=godot-engine&logoColor=white)](https://godotengine.org)
 [![Rust 2021](https://img.shields.io/badge/Rust-2021_edition-orange?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
 
+**Language**: English | [简体中文](README.zh-CN.md) | [Português do Brasil](README.pt-BR.md)
+
 <img src="addons/gdserial/icon.png" alt="GdSerial Icon" width="64" height="64" align="left" style="margin-right: 20px;">
 
 A high-performance Rust-based serial communication library for Godot 4 game engine, providing PySerial-like functionality through gdext. Enable direct hardware communication with Arduino, ESP32, sensors, modems, and IoT devices in your Godot games and applications.
@@ -73,6 +75,16 @@ build_release.bat
 ```
 
 1. The plugin will be ready in the `addons/gdserial` folder with compiled libraries.
+
+## In-Editor Documentation
+
+GdSerial ships class reference docs that appear directly in Godot's built-in Help (F1). Godot picks the language automatically based on your OS locale.
+
+| Language | Folder |
+| :--- | :--- |
+| English | [doc/en/](addons/gdserial/doc/en/) |
+| 简体中文 (Simplified Chinese) | [doc/zh_CN/](addons/gdserial/doc/zh_CN/) |
+| Português do Brasil (Brazilian Portuguese) | [doc/pt_BR/](addons/gdserial/doc/pt_BR/) |
 
 ## API Reference
 
