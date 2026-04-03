@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GdSerial" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+		为 Godot 4 提供类似 PySerial 的串口通信库。
+	</brief_description>
+	<description>
+		GdSerial 为 Godot 4 提供跨平台串口通信功能，可直接与 Arduino、传感器、调制解调器等串行设备通信。其 API 设计风格类似 Python 的 PySerial 库，易于上手。
+
+		本库支持自动断线检测、健壮的错误处理，以及跨平台端口枚举与设备识别。
+
+		主要特性：
+		- 类似 PySerial 的 API，使用模式熟悉
+		- 自动检测设备断线并清理资源
+		- 跨平台支持（Windows、Linux、macOS）
+		- USB 设备识别（VID/PID、制造商、产品名）
+		- 可配置波特率、超时时间及端口参数
+		- 支持二进制与文本通信
+		- 支持基于换行符的行读取
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="bytes_available">
+			<return type="int" />
+			<description>
+				返回串口缓冲区中可读取的字节数。
+
+				此方法会自动检测连接状态，若设备不再可用则将端口标记为已断线。若端口未打开或已断线，返回 0。
+
+				可在调用 [method read] 或 [method read_string] 之前用于检查是否有数据可读，以避免阻塞操作。
+			</description>
+		</method>
+		<method name="clear_buffer">
+			<return type="bool" />
+			<description>
+				清空串口输入和输出缓冲区中的所有数据。
+
+				成功返回 [code]true[/code]，否则返回 [code]false[/code]。此方法会自动检测连接状态，并在设备不可用时处理断线情况。
+
+				适用于开始通信或出现错误后需要重置状态的场景。
+			</description>
+		</method>
+		<method name="close">
+			<return type="void" />
+			<description>
+				关闭串口连接并释放相关资源。
+
+				调用此方法后，[method is_open] 将返回 [code]false[/code]，所有读写操作将失败，直到再次调用 [method open]。
+
+				多次调用或在端口已关闭时调用此方法是安全的。
+			</description>
+		</method>
+		<method name="is_open">
+			<return type="bool" />
+			<description>
+				检查串口当前是否已打开且设备仍处于连接状态。
+
+				此方法通过对端口执行非破坏性操作来主动检测连接。若设备已断开（如 USB 设备拔出），此方法将自动关闭端口并返回 [code]false[/code]。
+
+				端口打开且设备可用时返回 [code]true[/code]，否则返回 [code]false[/code]。
+			</description>
+		</method>
+		<method name="list_ports">
+			<return type="Dictionary" />
+			<description>
+				返回包含系统所有可用串口信息的字典。
+
+				字典中每个条目的键为整数（端口索引），值为包含以下字段的字典：
+				- [code]port_name[/code]（String）：系统端口名（如 "COM3"、"/dev/ttyUSB0"）
+				- [code]port_type[/code]（String）：类型信息，USB 设备包含 VID/PID
+				- [code]device_name[/code]（String）：来自 USB 描述符的可读设备名
+
+				返回值示例：
+				[codeblock]
+				{
+				  0: {
+				    "port_name": "COM3",
+				    "port_type": "USB - VID: 2341, PID: 0043",
+				    "device_name": "Arduino Uno"
+				  }
+				}
+				[/codeblock]
+
+				可用于向用户展示可用端口，或实现自动设备发现。
+			</description>
+		</method>
+		<method name="open">
+			<return type="bool" />
+			<description>
+				使用当前配置打开串口连接。
+
+				成功返回 [code]true[/code]，否则返回 [code]false[/code]。端口配置使用：
+				- 8 位数据位
+				- 无校验位
+				- 1 位停止位
+				- 无流控制
+				- 波特率由 [method set_baud_rate] 设置（默认：9600）
+				- 超时由 [method set_timeout] 设置（默认：1000 毫秒）
+
+				调用此方法前必须先用 [method set_port] 设置有效的端口名。
+			</description>
+		</method>
+		<method name="read">
+			<return type="PackedByteArray" />
+			<param index="0" name="size" type="int" />
+			<description>
+				从串口读取最多 [param size] 个字节，以 [PackedByteArray] 形式返回。
+
+				此方法使用非阻塞读取，即使可用数据少于 [param size] 字节也会立即返回。若无数据或发生错误，返回空的 [PackedByteArray]。
+
+				此方法自动处理断线检测——若读取过程中设备断开，端口将自动关闭。
+
+				超时行为由 [method set_timeout] 控制。超过超时时间的读取操作将返回空数组。
+			</description>
+		</method>
+		<method name="read_string">
+			<return type="String" />
+			<param index="0" name="size" type="int" />
+			<description>
+				从串口读取最多 [param size] 个字节并转换为 UTF-8 字符串。
+
+				此方法是对 [method read] 的封装，将结果转换为字符串。若收到的字节无法转换为有效 UTF-8，将记录错误并返回空字符串。
+
+				无数据可读、发生错误或转换失败时返回空字符串。
+			</description>
+		</method>
+		<method name="readline">
+			<return type="String" />
+			<description>
+				从串口读取一行文本，遇到换行符（'\n'）时停止。
+
+				此方法逐字节读取数据，直到遇到换行符、超时或发生错误。回车符（'\r'）会被自动过滤。
+
+				返回的字符串不包含换行符本身。若在收到完整行之前超时，将返回已读取的部分数据。
+
+				端口未打开、无数据可读或发生错误时返回空字符串。
+
+				特别适用于基于行协议的通信，以及与发送换行符结尾数据的设备通信。
+			</description>
+		</method>
+		<method name="set_baud_rate">
+			<return type="void" />
+			<param index="0" name="baud_rate" type="int" />
+			<description>
+				设置串口的波特率（通信速率）。
+
+				波特率决定串行连接的数据传输速度。常用值包括 9600、19200、38400、57600、115200 等。
+
+				此设置在下次调用 [method open] 时生效。端口打开后修改波特率不影响当前连接。
+
+				默认值：9600
+			</description>
+		</method>
+		<method name="set_data_bits">
+			<return type="void" />
+			<param index="0" name="bits" type="int" />
+			<description>
+				设置串口的数据位数。
+
+				有效值为 6、7 或 8。此设置在下次调用 [method open] 时生效。
+
+				默认值：8
+			</description>
+		</method>
+		<method name="set_parity">
+			<return type="void" />
+			<param index="0" name="type" type="int" />
+			<description>
+				设置串口的校验模式。
+
+				有效值：
+				- 0：无校验
+				- 1：奇校验（校验位使 1 的个数为奇数）
+				- 2：偶校验（校验位使 1 的个数为偶数）
+
+				此设置在下次调用 [method open] 时生效。
+
+				默认值：0（无校验）
+			</description>
+		</method>
+		<method name="set_stop_bits">
+			<return type="void" />
+			<param index="0" name="bits" type="int" />
+			<description>
+				设置串口的停止位数。
+
+				有效值为 1 或 2。此设置在下次调用 [method open] 时生效。
+
+				默认值：1
+			</description>
+		</method>
+		<method name="set_flow_control">
+			<return type="void" />
+			<param index="0" name="type" type="int" />
+			<description>
+				设置串口的流控制模式。
+
+				有效值：
+				- 0：无流控制
+				- 1：软件流控（XON/XOFF）
+				- 2：硬件流控（RTS/CTS）
+
+				此设置在下次调用 [method open] 时生效。
+
+				默认值：0（无流控制）
+			</description>
+		</method>
+		<method name="set_port">
+			<return type="void" />
+			<param index="0" name="port_name" type="String" />
+			<description>
+				设置要连接的串口名称。
+
+				端口名格式取决于操作系统：
+				- Windows："COM1"、"COM2" 等
+				- Linux："/dev/ttyUSB0"、"/dev/ttyACM0" 等
+				- macOS："/dev/tty.usbserial-*"、"/dev/tty.usbmodem*" 等
+
+				可使用 [method list_ports] 发现系统上的可用端口。
+
+				此设置在下次调用 [method open] 时生效。
+			</description>
+		</method>
+		<method name="set_timeout">
+			<return type="void" />
+			<param index="0" name="timeout_ms" type="int" />
+			<description>
+				设置读取操作的超时时间（毫秒）。
+
+				此超时适用于所有读取操作（[method read]、[method read_string]、[method readline]）。若读取操作在此时间内无法完成，将返回已获得的数据。
+
+				较长的超时给慢速设备更多响应时间，较短的超时响应更快但可能截断慢速设备的数据。
+
+				此设置在下次调用 [method open] 时生效。
+
+				默认值：1000（1 秒）
+			</description>
+		</method>
+		<method name="write">
+			<return type="bool" />
+			<param index="0" name="data" type="PackedByteArray" />
+			<description>
+				向串口写入二进制数据。
+
+				所有数据成功写入并刷新到设备时返回 [code]true[/code]，否则返回 [code]false[/code]。
+
+				此方法在写入前自动检测连接状态，并处理断线检测。若写入过程中设备断开，端口将自动关闭。
+
+				所有数据会立即刷新以确保发送到设备。
+			</description>
+		</method>
+		<method name="write_string">
+			<return type="bool" />
+			<param index="0" name="data" type="String" />
+			<description>
+				向串口写入字符串。
+
+				此方法将字符串转换为 UTF-8 字节后调用 [method write]。
+
+				成功写入并刷新到设备时返回 [code]true[/code]，否则返回 [code]false[/code]。
+			</description>
+		</method>
+		<method name="writeline">
+			<return type="bool" />
+			<param index="0" name="data" type="String" />
+			<description>
+				向串口写入字符串并附加换行符（'\n'）。
+
+				此方法是基于行协议通信的便捷方法，会在提供的字符串后追加换行符并发送到设备。
+
+				成功写入字符串和换行符并刷新到设备时返回 [code]true[/code]，否则返回 [code]false[/code]。
+
+				适用于与期望行终止命令的设备通信。
+			</description>
+		</method>
+	</methods>
+</class>

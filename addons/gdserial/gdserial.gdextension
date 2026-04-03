@@ -19,4 +19,6 @@ macos.debug.arm64 =      "res://addons/gdserial/bin/macos-arm64/libgdserial.dyli
 macos.release.arm64 =    "res://addons/gdserial/bin/macos-arm64/libgdserial.dylib"
 
 [documentation]
-en = "res://addons/gdserial/doc/en/"
+en =    "res://addons/gdserial/doc/en/"
+zh_CN = "res://addons/gdserial/doc/zh_CN/"
+pt_BR = "res://addons/gdserial/doc/pt_BR/"

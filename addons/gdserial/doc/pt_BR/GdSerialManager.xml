@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GdSerialManager" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+		Gerenciador de comunicação serial assíncrona multi-porta para Godot 4.
+	</brief_description>
+	<description>
+		GdSerialManager fornece comunicação serial não bloqueante e multi-porta através de threads de leitura em segundo plano e sinais de eventos. É ideal para aplicações que requerem comunicação simultânea com múltiplos dispositivos seriais ou operações de UI não bloqueantes.
+
+		Ao contrário de [GdSerial], que opera de forma síncrona em uma única porta, GdSerialManager gerencia múltiplas portas em paralelo, emitindo sinais quando dados chegam ou conexões são perdidas. Os modos de buffer permitem tratar diferentes protocolos de dados:
+
+		Principais recursos:
+		- Suporte multi-porta com threads de leitura independentes
+		- Tratamento de eventos baseado em sinais (não bloqueante)
+		- Três modos de buffer: RAW, LINE_BUFFERED, CUSTOM_DELIMITER
+		- Mudanças de modo dinâmicas via [method set_delimiter]
+		- Implementação thread-safe usando Arc&lt;Mutex&gt;
+		- Suporte multiplataforma (Windows, Linux, macOS)
+	</description>
+	<tutorials>
+	</tutorials>
+	<constants>
+		<constant name="MODE_RAW" value="0">
+			Modo de buffer: emite todos os chunks de dados imediatamente conforme chegam. Ideal para dados binários e aplicações de alta velocidade.
+		</constant>
+		<constant name="MODE_LINE_BUFFERED" value="1">
+			Modo de buffer: armazena bytes recebidos até receber um caractere de nova linha ([code]\n[/code]), então emite a linha completa.
+		</constant>
+		<constant name="MODE_CUSTOM_DELIMITER" value="2">
+			Modo de buffer: armazena bytes recebidos até receber um byte delimitador personalizado. Defina o delimitador via [method set_delimiter].
+		</constant>
+	</constants>
+	<methods>
+		<method name="open">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<param index="1" name="baud_rate" type="int" />
+			<param index="2" name="timeout_ms" type="int" />
+			<description>
+				Abre uma porta serial com modo de buffer RAW ([constant MODE_RAW], o padrão).
+
+				Retorna [code]true[/code] se a porta foi aberta com sucesso, [code]false[/code] caso contrário. Uma thread de leitura em segundo plano é iniciada imediatamente, que emitirá [signal data_received] quando dados chegarem.
+
+				O modo RAW emite todos os chunks de dados imediatamente sem armazenamento em buffer, tornando-o ideal para dados binários e aplicações de alta velocidade.
+
+				Se a porta já estiver aberta, será fechada primeiro antes de abrir novamente.
+
+				Para abrir com um modo de buffer específico, use [method open_buffered].
+			</description>
+		</method>
+		<method name="open_buffered">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<param index="1" name="baud_rate" type="int" />
+			<param index="2" name="timeout_ms" type="int" />
+			<param index="3" name="mode" type="int" />
+			<description>
+				Abre uma porta serial com um modo de buffer explícito.
+
+				Retorna [code]true[/code] se a porta foi aberta com sucesso, [code]false[/code] caso contrário.
+
+				Use as constantes [constant MODE_RAW], [constant MODE_LINE_BUFFERED] ou [constant MODE_CUSTOM_DELIMITER] para o parâmetro [param mode]:
+				[codeblock]
+				manager.open_buffered("COM3", 9600, 1000, GdSerialManager.MODE_LINE_BUFFERED)
+				[/codeblock]
+
+				Para [constant MODE_CUSTOM_DELIMITER], o delimitador padrão é [code]\n[/code] (0x0A). Altere-o após a abertura com [method set_delimiter].
+
+				Se a porta já estiver aberta, será fechada primeiro antes de abrir novamente.
+			</description>
+		</method>
+		<method name="close">
+			<return type="void" />
+			<param index="0" name="port_name" type="String" />
+			<description>
+				Fecha uma porta serial e para sua thread de leitura.
+
+				Após chamar este método, [method is_open] retornará [code]false[/code] para esta porta. Quaisquer dados pendentes no buffer da thread serão descartados.
+
+				O sinal [signal port_disconnected] é emitido tanto para fechamentos manuais quanto para desconexões de hardware (detectadas via [method poll_events]).
+			</description>
+		</method>
+		<method name="is_open">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<description>
+				Verifica se uma porta específica está atualmente aberta.
+
+				Retorna [code]true[/code] se a porta está aberta e sua thread de leitura está ativa, [code]false[/code] caso contrário.
+			</description>
+		</method>
+		<method name="write">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<param index="1" name="data" type="PackedByteArray" />
+			<description>
+				Escreve dados binários em uma porta específica.
+
+				Retorna [code]true[/code] se os dados foram escritos e enviados com sucesso ao dispositivo, [code]false[/code] se a porta não está aberta ou ocorreu um erro de escrita.
+
+				Este método é thread-safe e pode ser chamado de qualquer thread.
+			</description>
+		</method>
+		<method name="set_delimiter">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<param index="1" name="delimiter" type="int" />
+			<description>
+				Define um byte delimitador personalizado para uma porta no modo 2 (CUSTOM_DELIMITER).
+
+				Retorna [code]true[/code] se bem-sucedido, [code]false[/code] se a porta não for encontrada.
+
+				A mudança de delimitador tem efeito imediato — a thread de leitura em execução verá o novo delimitador no próximo chunk de dados. Isso permite mudanças de modo dinâmicas sem fechar e reabrir a porta.
+
+				Delimitadores típicos:
+				- 0x0A (10): Nova linha ('\n')
+				- 0x0D (13): Retorno de carro ('\r')
+				- 0xFF (255): Marcador de fim personalizado
+				- 0x00 (0): Terminador nulo
+			</description>
+		</method>
+		<method name="list_ports">
+			<return type="Dictionary" />
+			<description>
+				Retorna um dicionário contendo informações sobre todas as portas seriais disponíveis no sistema.
+
+				Cada entrada no dicionário tem uma chave inteira (índice da porta) e um valor Dictionary contendo:
+				- [code]port_name[/code] (String): O nome da porta do sistema (ex.: "COM3", "/dev/ttyUSB0")
+				- [code]port_type[/code] (String): Informações de tipo incluindo VID/PID USB para dispositivos USB
+				- [code]device_name[/code] (String): Nome legível do dispositivo a partir dos descritores USB
+
+				Exemplo de valor retornado:
+				[codeblock]
+				{
+				  0: {
+				    "port_name": "COM3",
+				    "port_type": "USB - VID: 2341, PID: 0043",
+				    "device_name": "Arduino Uno"
+				  }
+				}
+				[/codeblock]
+			</description>
+		</method>
+		<method name="poll_events">
+			<return type="Array" />
+			<description>
+				Processa eventos pendentes de todas as threads de leitura e emite sinais.
+
+				Este método DEVE ser chamado regularmente a partir de [method _process] para acionar os sinais [signal data_received] e [signal port_disconnected]. Ele recupera todos os eventos enfileirados das threads de leitura e emite os sinais correspondentes.
+
+				Retorna um array de dicionários de eventos para tratamento baseado em polling:
+				- Eventos de dados: [code]{"port": "COM3", "data": PackedByteArray(...)}[/code]
+				- Eventos de desconexão: [code]{"port": "COM3", "disconnected": true}[/code]
+
+				Uso típico:
+				[codeblock]
+				func _process(_delta):
+					manager.poll_events()
+				[/codeblock]
+			</description>
+		</method>
+		<method name="reconfigure_port">
+			<return type="bool" />
+			<param index="0" name="port_name" type="String" />
+			<param index="1" name="baud_rate" type="int" />
+			<param index="2" name="data_bits" type="int" />
+			<param index="3" name="parity" type="int" />
+			<param index="4" name="stop_bits" type="int" />
+			<param index="5" name="flow_control" type="int" />
+			<param index="6" name="timeout_ms" type="int" />
+			<description>
+				Atualiza as configurações em uma porta aberta.
+
+				Retorna [code]true[/code] se todas as configurações foram aplicadas com sucesso, [code]false[/code] se a porta não está aberta ou qualquer configuração falhou.
+
+				Parâmetros:
+				- [code]data_bits[/code]: 6, 7 ou 8
+				- [code]parity[/code]: 0 (Nenhuma), 1 (Ímpar), 2 (Par)
+				- [code]stop_bits[/code]: 1 ou 2
+				- [code]flow_control[/code]: 0 (Nenhum), 1 (Software), 2 (Hardware)
+				- [code]timeout_ms[/code]: Timeout de leitura em milissegundos
+
+				As mudanças têm efeito imediato enquanto a porta está aberta.
+			</description>
+		</method>
+	</methods>
+	<signals>
+		<signal name="data_received">
+			<param index="0" name="port" type="String" />
+			<param index="1" name="data" type="PackedByteArray" />
+			<description>
+				Emitido quando dados chegam de uma porta.
+
+				O parâmetro [param port] é o nome da porta (ex.: "COM3"), e [param data] contém os bytes recebidos. O formato de [param data] depende do modo de buffer da porta:
+				- Modo RAW: Chunks de dados brutos conforme chegam
+				- Modo LINE_BUFFERED: Linhas completas terminadas por nova linha
+				- Modo CUSTOM_DELIMITER: Dados terminados pelo byte delimitador personalizado
+
+				Conecte-se a este sinal para tratar dados recebidos de forma assíncrona sem bloqueio.
+			</description>
+		</signal>
+		<signal name="port_disconnected">
+			<param index="0" name="port" type="String" />
+			<description>
+				Emitido quando uma porta é desconectada ou perdida.
+
+				O parâmetro [param port] é o nome da porta desconectada. A porta é fechada automaticamente quando este sinal é emitido, seja por fechamento manual via [method close] ou por desconexão de hardware. Você pode chamar [method open] novamente para reconectar.
+
+				Causas comuns:
+				- Dispositivo USB desconectado
+				- Conexão serial perdida
+				- Dispositivo desligado
+				- Erro de leitura (ex.: permissão negada)
+			</description>
+		</signal>
+	</signals>
+</class>

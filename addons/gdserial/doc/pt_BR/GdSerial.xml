@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GdSerial" inherits="RefCounted" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+		Biblioteca de comunicação serial para Godot 4 com API semelhante ao PySerial.
+	</brief_description>
+	<description>
+		GdSerial fornece comunicação serial multiplataforma para Godot 4, permitindo comunicação direta com dispositivos seriais como Arduino, sensores, modems e outros hardwares. A API foi projetada para ser semelhante à biblioteca PySerial do Python, tornando-a familiar e fácil de usar.
+
+		A biblioteca suporta detecção automática de desconexão, tratamento robusto de erros e enumeração de portas multiplataforma com identificação de dispositivos.
+
+		Principais recursos:
+		- API semelhante ao PySerial para padrões de uso familiares
+		- Detecção automática de desconexão e limpeza de recursos
+		- Suporte multiplataforma (Windows, Linux, macOS)
+		- Identificação de dispositivos USB (VID/PID, fabricante, produto)
+		- Taxas de baud, timeouts e configurações de porta configuráveis
+		- Comunicação binária e baseada em texto
+		- Leitura por linhas com tratamento adequado de nova linha
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="bytes_available">
+			<return type="int" />
+			<description>
+				Retorna o número de bytes disponíveis para leitura no buffer da porta serial.
+
+				Este método testa automaticamente o estado da conexão e marcará a porta como desconectada se o dispositivo não estiver mais disponível. Se a porta não estiver aberta ou tiver sido desconectada, retorna 0.
+
+				Útil para verificar se há dados disponíveis antes de chamar [method read] ou [method read_string] para evitar operações bloqueantes.
+			</description>
+		</method>
+		<method name="clear_buffer">
+			<return type="bool" />
+			<description>
+				Limpa todos os dados dos buffers de entrada e saída da porta serial.
+
+				Retorna [code]true[/code] se os buffers foram limpos com sucesso, [code]false[/code] caso contrário. Este método testa automaticamente o estado da conexão e tratará a desconexão se o dispositivo não estiver mais disponível.
+
+				Útil para garantir um estado limpo ao iniciar a comunicação ou após uma condição de erro.
+			</description>
+		</method>
+		<method name="close">
+			<return type="void" />
+			<description>
+				Fecha a conexão serial e libera todos os recursos associados.
+
+				Após chamar este método, [method is_open] retornará [code]false[/code] e todas as operações de leitura/escrita falharão até que [method open] seja chamado novamente.
+
+				É seguro chamar este método várias vezes ou quando a porta já está fechada.
+			</description>
+		</method>
+		<method name="is_open">
+			<return type="bool" />
+			<description>
+				Verifica se a porta serial está atualmente aberta e o dispositivo ainda está conectado.
+
+				Este método testa ativamente a conexão tentando uma operação não destrutiva na porta. Se o dispositivo foi desconectado (ex.: dispositivo USB desconectado), este método fechará automaticamente a porta e retornará [code]false[/code].
+
+				Retorna [code]true[/code] se a porta está aberta e o dispositivo ainda está disponível, [code]false[/code] caso contrário.
+			</description>
+		</method>
+		<method name="list_ports">
+			<return type="Dictionary" />
+			<description>
+				Retorna um dicionário contendo informações sobre todas as portas seriais disponíveis no sistema.
+
+				Cada entrada no dicionário tem uma chave inteira (índice da porta) e um valor Dictionary contendo:
+				- [code]port_name[/code] (String): O nome da porta do sistema (ex.: "COM3", "/dev/ttyUSB0")
+				- [code]port_type[/code] (String): Informações de tipo incluindo VID/PID USB para dispositivos USB
+				- [code]device_name[/code] (String): Nome legível do dispositivo a partir dos descritores USB
+
+				Exemplo de valor retornado:
+				[codeblock]
+				{
+				  0: {
+				    "port_name": "COM3",
+				    "port_type": "USB - VID: 2341, PID: 0043",
+				    "device_name": "Arduino Uno"
+				  }
+				}
+				[/codeblock]
+
+				Útil para apresentar portas disponíveis aos usuários e para descoberta automática de dispositivos.
+			</description>
+		</method>
+		<method name="open">
+			<return type="bool" />
+			<description>
+				Abre uma conexão com a porta serial usando a configuração atual.
+
+				Retorna [code]true[/code] se a porta foi aberta com sucesso, [code]false[/code] caso contrário. A configuração da porta usa:
+				- 8 bits de dados
+				- Sem paridade
+				- 1 bit de parada
+				- Sem controle de fluxo
+				- Taxa de baud definida por [method set_baud_rate] (padrão: 9600)
+				- Timeout definido por [method set_timeout] (padrão: 1000 ms)
+
+				Você deve chamar [method set_port] com um nome de porta válido antes de chamar este método.
+			</description>
+		</method>
+		<method name="read">
+			<return type="PackedByteArray" />
+			<param index="0" name="size" type="int" />
+			<description>
+				Lê até [param size] bytes da porta serial e os retorna como [PackedByteArray].
+
+				Este método usa leituras não bloqueantes e retornará imediatamente com os dados disponíveis, mesmo que menos que [param size] bytes estejam disponíveis. Se nenhum dado estiver disponível ou ocorrer um erro, retorna um [PackedByteArray] vazio.
+
+				O método trata automaticamente a detecção de desconexão — se o dispositivo for desconectado durante a operação de leitura, a porta será fechada automaticamente.
+
+				O comportamento de timeout é controlado por [method set_timeout]. Operações de leitura que excedam o timeout retornarão um array vazio.
+			</description>
+		</method>
+		<method name="read_string">
+			<return type="String" />
+			<param index="0" name="size" type="int" />
+			<description>
+				Lê até [param size] bytes da porta serial e os converte para uma string UTF-8.
+
+				Este é um método de conveniência que chama [method read] e converte o resultado para uma string. Se os bytes recebidos não puderem ser convertidos para UTF-8 válido, um erro é registrado e uma string vazia é retornada.
+
+				Retorna uma string vazia se nenhum dado estiver disponível, ocorrer um erro ou a conversão falhar.
+			</description>
+		</method>
+		<method name="readline">
+			<return type="String" />
+			<description>
+				Lê uma linha de texto da porta serial, parando no primeiro caractere de nova linha ('\n').
+
+				Este método lê dados byte a byte até encontrar uma nova linha, o timeout ser atingido ou ocorrer um erro. Caracteres de retorno de carro ('\r') são automaticamente filtrados.
+
+				O caractere de nova linha em si não é incluído na string retornada. Se o timeout for atingido antes de receber uma linha completa, os dados parciais da linha são retornados.
+
+				Retorna uma string vazia se nenhum dado estiver disponível, a porta não estiver aberta ou ocorrer um erro.
+
+				Particularmente útil para protocolos baseados em linhas e comunicação com dispositivos que enviam dados terminados por nova linha.
+			</description>
+		</method>
+		<method name="set_baud_rate">
+			<return type="void" />
+			<param index="0" name="baud_rate" type="int" />
+			<description>
+				Define a taxa de baud (velocidade de comunicação) da porta serial.
+
+				A taxa de baud determina a velocidade de transmissão de dados na conexão serial. Valores comuns incluem 9600, 19200, 38400, 57600, 115200, etc.
+
+				Esta configuração tem efeito na próxima chamada de [method open]. Alterar a taxa de baud enquanto a porta está aberta não afetará a conexão atual.
+
+				Valor padrão: 9600
+			</description>
+		</method>
+		<method name="set_data_bits">
+			<return type="void" />
+			<param index="0" name="bits" type="int" />
+			<description>
+				Define o número de bits de dados da porta serial.
+
+				Valores válidos são 6, 7 ou 8. Esta configuração tem efeito na próxima chamada de [method open].
+
+				Valor padrão: 8
+			</description>
+		</method>
+		<method name="set_parity">
+			<return type="void" />
+			<param index="0" name="type" type="int" />
+			<description>
+				Define o modo de paridade da porta serial.
+
+				Valores válidos:
+				- 0: Nenhuma (sem verificação de paridade)
+				- 1: Ímpar (bit de paridade torna o número de 1s ímpar)
+				- 2: Par (bit de paridade torna o número de 1s par)
+
+				Esta configuração tem efeito na próxima chamada de [method open].
+
+				Valor padrão: 0 (Nenhuma)
+			</description>
+		</method>
+		<method name="set_stop_bits">
+			<return type="void" />
+			<param index="0" name="bits" type="int" />
+			<description>
+				Define o número de bits de parada da porta serial.
+
+				Valores válidos são 1 ou 2. Esta configuração tem efeito na próxima chamada de [method open].
+
+				Valor padrão: 1
+			</description>
+		</method>
+		<method name="set_flow_control">
+			<return type="void" />
+			<param index="0" name="type" type="int" />
+			<description>
+				Define o modo de controle de fluxo da porta serial.
+
+				Valores válidos:
+				- 0: Nenhum (sem controle de fluxo)
+				- 1: Software (XON/XOFF)
+				- 2: Hardware (RTS/CTS)
+
+				Esta configuração tem efeito na próxima chamada de [method open].
+
+				Valor padrão: 0 (Nenhum)
+			</description>
+		</method>
+		<method name="set_port">
+			<return type="void" />
+			<param index="0" name="port_name" type="String" />
+			<description>
+				Define o nome da porta serial para conectar.
+
+				O formato do nome da porta depende do sistema operacional:
+				- Windows: "COM1", "COM2", etc.
+				- Linux: "/dev/ttyUSB0", "/dev/ttyACM0", etc.
+				- macOS: "/dev/tty.usbserial-*", "/dev/tty.usbmodem*", etc.
+
+				Use [method list_ports] para descobrir as portas disponíveis no sistema.
+
+				Esta configuração tem efeito na próxima chamada de [method open].
+			</description>
+		</method>
+		<method name="set_timeout">
+			<return type="void" />
+			<param index="0" name="timeout_ms" type="int" />
+			<description>
+				Define o timeout para operações de leitura em milissegundos.
+
+				Este timeout se aplica a todas as operações de leitura ([method read], [method read_string], [method readline]). Se uma operação de leitura não puder ser concluída dentro deste tempo, retornará com os dados disponíveis.
+
+				Um timeout maior permite mais tempo para dispositivos lentos responderem, enquanto timeouts menores tornam as operações mais responsivas mas podem truncar dados de dispositivos lentos.
+
+				Esta configuração tem efeito na próxima chamada de [method open].
+
+				Valor padrão: 1000 (1 segundo)
+			</description>
+		</method>
+		<method name="write">
+			<return type="bool" />
+			<param index="0" name="data" type="PackedByteArray" />
+			<description>
+				Escreve dados binários na porta serial.
+
+				Retorna [code]true[/code] se todos os dados foram escritos e enviados com sucesso ao dispositivo, [code]false[/code] caso contrário.
+
+				O método testa automaticamente o estado da conexão antes de escrever e trata a detecção de desconexão. Se o dispositivo for desconectado durante a operação de escrita, a porta será fechada automaticamente.
+
+				Todos os dados são imediatamente enviados para garantir que sejam transmitidos ao dispositivo.
+			</description>
+		</method>
+		<method name="write_string">
+			<return type="bool" />
+			<param index="0" name="data" type="String" />
+			<description>
+				Escreve uma string na porta serial.
+
+				Este é um método de conveniência que converte a string para bytes UTF-8 e chama [method write].
+
+				Retorna [code]true[/code] se a string foi escrita e enviada com sucesso ao dispositivo, [code]false[/code] caso contrário.
+			</description>
+		</method>
+		<method name="writeline">
+			<return type="bool" />
+			<param index="0" name="data" type="String" />
+			<description>
+				Escreve uma string seguida de um caractere de nova linha ('\n') na porta serial.
+
+				Este é um método de conveniência para protocolos baseados em linhas. Ele adiciona um caractere de nova linha à string fornecida e a envia ao dispositivo.
+
+				Retorna [code]true[/code] se a string e a nova linha foram escritas e enviadas com sucesso ao dispositivo, [code]false[/code] caso contrário.
+
+				Útil para comunicação com dispositivos que esperam comandos terminados por nova linha.
+			</description>
+		</method>
+	</methods>
+</class>
