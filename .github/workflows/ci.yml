@@ -3,12 +3,12 @@ name: CI Build Test
 on:
   push:
     branches:
-      - '**'
+      - "**"
     tags-ignore:
-      - 'v*'
+      - "v*"
   pull_request:
     branches:
-      - '**'
+      - "**"
 
 jobs:
   build:
@@ -50,57 +50,57 @@ jobs:
             use_cross: false
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-    - name: Install system dependencies (Linux native builds)
-      if: matrix.os == 'ubuntu-latest' && matrix.use_cross == false
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libudev-dev
+      - name: Install system dependencies (Linux native builds)
+        if: matrix.os == 'ubuntu-latest' && matrix.use_cross == false
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev
 
-    - name: Setup Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        target: ${{ matrix.target }}
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
 
-    - name: Install cross for cross-compilation
-      if: matrix.use_cross == true
-      run: cargo install cross --git https://github.com/cross-rs/cross
-      shell: bash
+      - name: Install cross for cross-compilation
+        if: matrix.use_cross == true
+        run: cargo install cross --git https://github.com/cross-rs/cross
+        shell: bash
 
-    - name: Clean cargo cache for cross-compilation
-      if: matrix.use_cross == true
-      run: cargo clean
-      shell: bash
+      - name: Clean cargo cache for cross-compilation
+        if: matrix.use_cross == true
+        run: cargo clean
+        shell: bash
 
-    - name: Build release (native)
-      if: matrix.use_cross == false
-      run: cargo build --release --target ${{ matrix.target }}
-      shell: bash
+      - name: Build release (native)
+        if: matrix.use_cross == false
+        run: cargo build --release --target ${{ matrix.target }}
+        shell: bash
 
-    - name: Build release (cross-compilation)
-      if: matrix.use_cross == true
-      run: cross build --release --target ${{ matrix.target }}
-      shell: bash
+      - name: Build release (cross-compilation)
+        if: matrix.use_cross == true
+        run: cross build --release --target ${{ matrix.target }}
+        shell: bash
 
-    - name: Verify build artifact exists
-      run: |
-        if [ -f "target/${{ matrix.target }}/release/${{ matrix.lib_name }}" ]; then
-          echo "✅ Build artifact found: target/${{ matrix.target }}/release/${{ matrix.lib_name }}"
-          ls -lh "target/${{ matrix.target }}/release/${{ matrix.lib_name }}"
-        else
-          echo "❌ Build artifact not found!"
-          exit 1
-        fi
-      shell: bash
+      - name: Verify build artifact exists
+        run: |
+          if [ -f "target/${{ matrix.target }}/release/${{ matrix.lib_name }}" ]; then
+            echo "✅ Build artifact found: target/${{ matrix.target }}/release/${{ matrix.lib_name }}"
+            ls -lh "target/${{ matrix.target }}/release/${{ matrix.lib_name }}"
+          else
+            echo "❌ Build artifact not found!"
+            exit 1
+          fi
+        shell: bash
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: gdserial-${{ matrix.target }}-test
-        path: target/${{ matrix.target }}/release/${{ matrix.lib_name }}
-        retention-days: 7
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: gdserial-${{ matrix.target }}-test
+          path: target/${{ matrix.target }}/release/${{ matrix.lib_name }}
+          retention-days: 7
 
   summary:
     name: Build Summary
@@ -108,18 +108,18 @@ jobs:
     needs: build
     if: always()
     steps:
-    - name: Check build results
-      run: |
-        echo "## Build Test Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "All platform builds completed. Check individual job results above." >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Tested Platforms:" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Windows x64" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Windows ARM64" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Linux x64" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ Linux ARM64" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ macOS Intel (x86_64)" >> $GITHUB_STEP_SUMMARY
-        echo "- ✅ macOS Apple Silicon (ARM64)" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "> This is a test build. No release will be created." >> $GITHUB_STEP_SUMMARY
+      - name: Check build results
+        run: |
+          echo "## Build Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All platform builds completed. Check individual job results above." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Tested Platforms:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Windows x64" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Windows ARM64" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Linux x64" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Linux ARM64" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ macOS Intel (x86_64)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ macOS Apple Silicon (ARM64)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> This is a test build. No release will be created." >> $GITHUB_STEP_SUMMARY
