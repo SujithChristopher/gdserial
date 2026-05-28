@@ -128,7 +128,7 @@ impl GdSerialManager {
             Ok(ports) => {
                 for (i, port) in ports.iter().enumerate() {
                     let mut port_info = VarDictionary::new();
-                    port_info.set(GString::from("port_name"), GString::from(&port.port_name));
+                    port_info.set(&GString::from("port_name"), &GString::from(&port.port_name));
 
                     let (port_type, device_name) = match &port.port_type {
                         SerialPortType::UsbPort(usb_info) => {
@@ -155,9 +155,9 @@ impl GdSerialManager {
                         }
                     };
 
-                    port_info.set(GString::from("port_type"), GString::from(&port_type));
-                    port_info.set(GString::from("device_name"), GString::from(&device_name));
-                    ports_dict.set(i as i32, port_info);
+                    port_info.set(&GString::from("port_type"), &GString::from(&port_type));
+                    port_info.set(&GString::from("device_name"), &GString::from(&device_name));
+                    ports_dict.set(i as i32, &port_info);
                 }
             }
             Err(e) => {
@@ -532,16 +532,16 @@ impl GdSerialManager {
                     );
 
                     let mut dict = VarDictionary::new();
-                    dict.set(GString::from("port"), gport);
-                    dict.set(GString::from("data"), pba);
+                    dict.set(&GString::from("port"), &gport);
+                    dict.set(&GString::from("data"), &pba);
                     out.push(&dict);
                 }
                 ReaderEvent::Disconnected(port) => {
                     let gport = GString::from(&port);
 
                     let mut dict = VarDictionary::new();
-                    dict.set(GString::from("port"), gport.clone());
-                    dict.set(GString::from("disconnected"), true);
+                    dict.set(&GString::from("port"), &gport);
+                    dict.set(&GString::from("disconnected"), true);
                     out.push(&dict);
                     self.close(GString::from(port.as_str()));
                 }
@@ -658,7 +658,7 @@ impl GdSerial {
             Ok(ports) => {
                 for (i, port) in ports.iter().enumerate() {
                     let mut port_info = VarDictionary::new();
-                    port_info.set(GString::from("port_name"), GString::from(&port.port_name));
+                    port_info.set(&GString::from("port_name"), &GString::from(&port.port_name));
 
                     let (port_type, device_name) = match &port.port_type {
                         SerialPortType::UsbPort(usb_info) => {
@@ -685,9 +685,9 @@ impl GdSerial {
                         }
                     };
 
-                    port_info.set(GString::from("port_type"), GString::from(&port_type));
-                    port_info.set(GString::from("device_name"), GString::from(&device_name));
-                    ports_dict.set(i as i32, port_info);
+                    port_info.set(&GString::from("port_type"), &GString::from(&port_type));
+                    port_info.set(&GString::from("device_name"), &GString::from(&device_name));
+                    ports_dict.set(i as i32, &port_info);
                 }
             }
             Err(e) => {

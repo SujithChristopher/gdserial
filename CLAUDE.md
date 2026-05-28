@@ -1,4 +1,4 @@
-# CLAUDE.md
+#ESP32-S3 2.06inch AMOLED Touch Watch Development Board, 32-bit LX7 Dual-core Processor, 410×502 Pixels, QSPI Interface, Onboard Dual Digital Microphones Array CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 

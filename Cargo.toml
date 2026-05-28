@@ -21,7 +21,7 @@ authors = ["Sujith Christopher"]
 crate-type = ["cdylib"]
 
 [dependencies]
-godot = "0.4.5"
+godot = { version = "0.5.3", features = ["api-4-4"] }
 serialport = "4.7.2"
 
 [profile.release]
