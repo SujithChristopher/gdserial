@@ -52,7 +52,7 @@ A high-performance Rust-based serial communication library for Godot 4 game engi
 #### Prerequisites
 
 - Rust (latest stable version)
-- Godot 4.2+
+- Godot 4.4+
 - Git
 
 #### Building Steps
