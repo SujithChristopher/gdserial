@@ -52,7 +52,7 @@ Uma biblioteca de comunicação serial de alto desempenho baseada em Rust para o
 #### Pré-requisitos
 
 - Rust (versão estável mais recente)
-- Godot 4.2+
+- Godot 4.4+
 - Git
 
 #### Etapas de Compilação

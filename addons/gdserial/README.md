@@ -55,7 +55,7 @@ See the main repository README for complete API documentation.
 
 ## Requirements
 
-- Godot 4.2+
+- Godot 4.4+
 - Appropriate permissions for serial port access (see platform-specific notes in main README)
 
 ## License
