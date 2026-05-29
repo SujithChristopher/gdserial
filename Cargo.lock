@@ -44,7 +44,7 @@ checksum = "58ad9a3d877c77834a2d1d92842ebd56928f61bd52e0fac4f04fc8b3731b0437"
 
 [[package]]
 name = "gdserial"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "godot",
  "serialport",
