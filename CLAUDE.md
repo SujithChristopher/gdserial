@@ -52,8 +52,8 @@ func _process(_delta):
 ```
 
 **Buffering modes** (exposed as class constants `MODE_RAW=0`, `MODE_LINE_BUFFERED=1`, `MODE_CUSTOM_DELIMITER=2`):
-- `open(port, baud, timeout)` — opens with RAW mode (default)
-- `open_buffered(port, baud, timeout, mode)` — opens with explicit mode
+- `open(port, baud, timeout, mode=MODE_RAW)` — opens a port; `mode` is an optional 4th arg (via gdext `#[opt(default = ...)]`) defaulting to RAW
+- `open_buffered(port, baud, timeout, mode)` — **deprecated** alias for `open` with explicit mode; kept for backward compatibility
 - `set_delimiter(port, byte)` — changes delimiter at runtime without reopening
 - `reconfigure_port(port, baud, timeout_ms, data_bits, parity, stop_bits, flow_control)` — change serial params on an already-open port without reopening
 

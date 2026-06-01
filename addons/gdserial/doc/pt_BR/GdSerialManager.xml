@@ -35,37 +35,31 @@
 			<param index="0" name="port_name" type="String" />
 			<param index="1" name="baud_rate" type="int" />
 			<param index="2" name="timeout_ms" type="int" />
+			<param index="3" name="mode" type="int" default="0" />
 			<description>
-				Abre uma porta serial com modo de buffer RAW ([constant MODE_RAW], o padrão).
+				Abre uma porta serial. O parâmetro [param mode] é opcional e o padrão é [constant MODE_RAW].
 
 				Retorna [code]true[/code] se a porta foi aberta com sucesso, [code]false[/code] caso contrário. Uma thread de leitura em segundo plano é iniciada imediatamente, que emitirá [signal data_received] quando dados chegarem.
 
-				O modo RAW emite todos os chunks de dados imediatamente sem armazenamento em buffer, tornando-o ideal para dados binários e aplicações de alta velocidade.
+				Use as constantes [constant MODE_RAW], [constant MODE_LINE_BUFFERED] ou [constant MODE_CUSTOM_DELIMITER] para o parâmetro [param mode]:
+				[codeblock]
+				manager.open("COM3", 9600, 1000)                                  # RAW (padrão)
+				manager.open("COM3", 9600, 1000, GdSerialManager.MODE_LINE_BUFFERED)
+				[/codeblock]
+
+				O modo RAW emite todos os chunks de dados imediatamente sem armazenamento em buffer, ideal para dados binários e aplicações de alta velocidade. Para [constant MODE_CUSTOM_DELIMITER], o delimitador padrão é [code]\n[/code] (0x0A); altere-o após a abertura com [method set_delimiter].
 
 				Se a porta já estiver aberta, será fechada primeiro antes de abrir novamente.
-
-				Para abrir com um modo de buffer específico, use [method open_buffered].
 			</description>
 		</method>
-		<method name="open_buffered">
+		<method name="open_buffered" deprecated="Use [method open] com o argumento opcional [param mode].">
 			<return type="bool" />
 			<param index="0" name="port_name" type="String" />
 			<param index="1" name="baud_rate" type="int" />
 			<param index="2" name="timeout_ms" type="int" />
 			<param index="3" name="mode" type="int" />
 			<description>
-				Abre uma porta serial com um modo de buffer explícito.
-
-				Retorna [code]true[/code] se a porta foi aberta com sucesso, [code]false[/code] caso contrário.
-
-				Use as constantes [constant MODE_RAW], [constant MODE_LINE_BUFFERED] ou [constant MODE_CUSTOM_DELIMITER] para o parâmetro [param mode]:
-				[codeblock]
-				manager.open_buffered("COM3", 9600, 1000, GdSerialManager.MODE_LINE_BUFFERED)
-				[/codeblock]
-
-				Para [constant MODE_CUSTOM_DELIMITER], o delimitador padrão é [code]\n[/code] (0x0A). Altere-o após a abertura com [method set_delimiter].
-
-				Se a porta já estiver aberta, será fechada primeiro antes de abrir novamente.
+				Alias obsoleto para [method open] com [param mode] explícito. Mantido por compatibilidade; use [method open].
 			</description>
 		</method>
 		<method name="close">

@@ -129,8 +129,8 @@ Gerenciador assíncrono multi-porta usando threads em segundo plano e sinais. Id
 ##### Métodos
 
 - `list_ports() -> Dictionary` — Igual a `GdSerial.list_ports()`
-- `open(name: String, baud: int, timeout: int) -> bool` — Abrir porta em modo RAW
-- `open_buffered(name: String, baud: int, timeout: int, mode: int) -> bool` — Abrir porta com modo de buffer (0: raw, 1: linha, 2: delimitador personalizado)
+- `open(name: String, baud: int, timeout: int, mode: int = 0) -> bool` — Abrir porta; `mode` é opcional e o padrão é `MODE_RAW` (0: raw, 1: linha, 2: delimitador personalizado)
+- `open_buffered(...)` — (Obsoleto) use `open` com o argumento opcional `mode`
 - `close(name: String)` — Fechar e parar thread de leitura; emite `port_disconnected`
 - `is_open(name: String) -> bool` — Verificar se uma porta específica está aberta
 - `write(name: String, data: PackedByteArray) -> bool` — Escrever bytes brutos em porta específica
@@ -212,7 +212,7 @@ print("Valor do sensor: ", reading)
 
 Para comunicação assíncrona multi-porta, use `GdSerialManager` com modo 1 (linha):
 ```gdscript
-manager.open_buffered("COM3", 9600, 1000, 1)  # Modo 1: aguarda nova linha
+manager.open("COM3", 9600, 1000, GdSerialManager.MODE_LINE_BUFFERED)  # aguarda nova linha
 ```
 
 ### Comandos AT (Modems, módulos WiFi)
@@ -234,9 +234,9 @@ var response = serial.read(10)
 
 Para protocolos binários assíncronos, use `GdSerialManager` com modo 0 (raw) ou modo 2 (delimitador personalizado):
 ```gdscript
-manager.open_buffered("COM3", 9600, 1000, 0)  # Modo 0: emite todos os chunks imediatamente
+manager.open("COM3", 9600, 1000)  # MODE_RAW (padrão): emite todos os chunks imediatamente
 # ou
-manager.open_buffered("COM3", 9600, 1000, 2)  # Modo 2: aguarda byte delimitador
+manager.open("COM3", 9600, 1000, GdSerialManager.MODE_CUSTOM_DELIMITER)  # aguarda byte delimitador
 manager.set_delimiter("COM3", 0xFF)            # Definir marcador de fim personalizado
 ```
 

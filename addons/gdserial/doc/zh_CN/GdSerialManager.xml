@@ -35,37 +35,31 @@
 			<param index="0" name="port_name" type="String" />
 			<param index="1" name="baud_rate" type="int" />
 			<param index="2" name="timeout_ms" type="int" />
+			<param index="3" name="mode" type="int" default="0" />
 			<description>
-				以 RAW 缓冲模式（[constant MODE_RAW]，默认）打开串口。
+				打开串口。[param mode] 参数可选，默认为 [constant MODE_RAW]。
 
 				成功返回 [code]true[/code]，否则返回 [code]false[/code]。后台读取线程立即启动，数据到达时会发送 [signal data_received] 信号。
 
-				RAW 模式下数据块到达时立即发送，无缓冲，适合二进制数据和高速应用。
+				[param mode] 参数请使用 [constant MODE_RAW]、[constant MODE_LINE_BUFFERED] 或 [constant MODE_CUSTOM_DELIMITER] 常量：
+				[codeblock]
+				manager.open("COM3", 9600, 1000)                                  # RAW（默认）
+				manager.open("COM3", 9600, 1000, GdSerialManager.MODE_LINE_BUFFERED)
+				[/codeblock]
+
+				RAW 模式下数据块到达时立即发送，无缓冲，适合二进制数据和高速应用。对于 [constant MODE_CUSTOM_DELIMITER]，默认分隔符为 [code]\n[/code]（0x0A），打开后可用 [method set_delimiter] 更改。
 
 				若端口已打开，将先关闭再重新打开。
-
-				若要使用特定缓冲模式打开，请使用 [method open_buffered]。
 			</description>
 		</method>
-		<method name="open_buffered">
+		<method name="open_buffered" deprecated="请改用带可选 [param mode] 参数的 [method open]。">
 			<return type="bool" />
 			<param index="0" name="port_name" type="String" />
 			<param index="1" name="baud_rate" type="int" />
 			<param index="2" name="timeout_ms" type="int" />
 			<param index="3" name="mode" type="int" />
 			<description>
-				以指定缓冲模式打开串口。
-
-				成功返回 [code]true[/code]，否则返回 [code]false[/code]。
-
-				[param mode] 参数请使用 [constant MODE_RAW]、[constant MODE_LINE_BUFFERED] 或 [constant MODE_CUSTOM_DELIMITER] 常量：
-				[codeblock]
-				manager.open_buffered("COM3", 9600, 1000, GdSerialManager.MODE_LINE_BUFFERED)
-				[/codeblock]
-
-				对于 [constant MODE_CUSTOM_DELIMITER]，默认分隔符为 [code]\n[/code]（0x0A）。打开后可用 [method set_delimiter] 更改。
-
-				若端口已打开，将先关闭再重新打开。
+				[method open]（带显式 [param mode]）的已弃用别名。为向后兼容保留；请改用 [method open]。
 			</description>
 		</method>
 		<method name="close">

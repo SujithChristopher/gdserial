@@ -265,14 +265,20 @@ impl GdSerialManager {
         }))
     }
 
-    /// Opens a serial port with RAW buffering mode (mode 0, default).
+    /// Opens a serial port. The buffering `mode` is optional and defaults to RAW (0).
+    /// Use the MODE_* constants (MODE_RAW=0, MODE_LINE_BUFFERED=1, MODE_CUSTOM_DELIMITER=2).
     #[func]
-    pub fn open(&mut self, port_name: GString, baud_rate: i32, timeout_ms: i32) -> bool {
-        self.open_impl(port_name, baud_rate, timeout_ms, 0)
+    pub fn open(
+        &mut self,
+        port_name: GString,
+        baud_rate: i32,
+        timeout_ms: i32,
+        #[opt(default = GdSerialManager::MODE_RAW as i32)] mode: i32,
+    ) -> bool {
+        self.open_impl(port_name, baud_rate, timeout_ms, mode)
     }
 
-    /// Opens a serial port with an explicit buffering mode.
-    /// Use the MODE_* constants (MODE_RAW=0, MODE_LINE_BUFFERED=1, MODE_CUSTOM_DELIMITER=2).
+    /// Deprecated: use `open(port, baud, timeout, mode)` instead. Kept for backward compatibility.
     #[func]
     pub fn open_buffered(&mut self, port_name: GString, baud_rate: i32, timeout_ms: i32, mode: i32) -> bool {
         self.open_impl(port_name, baud_rate, timeout_ms, mode)

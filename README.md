@@ -129,7 +129,7 @@ Multi-port, asynchronous manager using background threads and signals. Ideal for
 ##### Methods
 
 - `list_ports() -> Dictionary` - Same as `GdSerial.list_ports()`
-- `open(name: String, baud: int, timeout: int, mode: int) -> bool` - Open a port with buffering mode (0: raw, 1: line-buffered, 2: custom delimiter)
+- `open(name: String, baud: int, timeout: int, mode: int = 0) -> bool` - Open a port; `mode` is optional and defaults to `MODE_RAW` (0: raw, 1: line-buffered, 2: custom delimiter)
 - `close(name: String)` - Close and stop reader thread
 - `is_open(name: String) -> bool` - Check if a specific port is open
 - `write(name: String, data: PackedByteArray) -> bool` - Write raw bytes to specific port
@@ -156,8 +156,9 @@ func _ready():
     manager.data_received.connect(_on_data)
     manager.port_disconnected.connect(_on_disconnect)
 
-    # Mode 0: RAW (emit all chunks), 1: LINE_BUFFERED (wait for \n), 2: CUSTOM_DELIMITER
-    if manager.open("COM3", 9600, 1000, 0):
+    # mode is optional; defaults to MODE_RAW. Use the constants for clarity:
+    # MODE_RAW (emit all chunks), MODE_LINE_BUFFERED (wait for \n), MODE_CUSTOM_DELIMITER
+    if manager.open("COM3", 9600, 1000):  # RAW (default)
         print("Connected to COM3")
 
 func _process(_delta):
@@ -211,9 +212,9 @@ var reading = serial.readline()
 print("Sensor value: ", reading)
 ```
 
-For asynchronous multi-port communication, use `GdSerialManager` with mode 1 (line-buffered):
+For asynchronous multi-port communication, use `GdSerialManager` with line-buffered mode:
 ```gdscript
-manager.open("COM3", 9600, 1000, 1)  # Mode 1: wait for newline
+manager.open("COM3", 9600, 1000, GdSerialManager.MODE_LINE_BUFFERED)  # wait for newline
 ```
 
 ### AT Commands (Modems, WiFi modules)
@@ -233,11 +234,11 @@ serial.write(data)
 var response = serial.read(10)
 ```
 
-For async binary protocols, use `GdSerialManager` with mode 0 (raw) or mode 2 (custom delimiter):
+For async binary protocols, use `GdSerialManager` in raw or custom-delimiter mode:
 ```gdscript
-manager.open("COM3", 9600, 1000, 0)  # Mode 0: emit all chunks immediately
+manager.open("COM3", 9600, 1000)  # MODE_RAW (default): emit all chunks immediately
 # or
-manager.open("COM3", 9600, 1000, 2)  # Mode 2: wait for delimiter byte
+manager.open("COM3", 9600, 1000, GdSerialManager.MODE_CUSTOM_DELIMITER)  # wait for delimiter byte
 manager.set_delimiter("COM3", 0xFF)  # Set custom end marker
 ```
 

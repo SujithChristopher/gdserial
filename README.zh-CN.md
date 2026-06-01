@@ -129,8 +129,8 @@ GdSerial 内置了类参考文档，可在 Godot 内置帮助（F1）中直接�
 ##### 方法
 
 - `list_ports() -> Dictionary` — 同 `GdSerial.list_ports()`
-- `open(name: String, baud: int, timeout: int) -> bool` — 以 RAW 模式打开端口
-- `open_buffered(name: String, baud: int, timeout: int, mode: int) -> bool` — 以指定缓冲模式打开端口（0：RAW，1：行缓冲，2：自定义分隔符）
+- `open(name: String, baud: int, timeout: int, mode: int = 0) -> bool` — 打开端口；`mode` 可选，默认为 `MODE_RAW`（0：RAW，1：行缓冲，2：自定义分隔符）
+- `open_buffered(...)` —（已弃用）请改用带可选 `mode` 参数的 `open`
 - `close(name: String)` — 关闭并停止读取线程，发送 `port_disconnected` 信号
 - `is_open(name: String) -> bool` — 检查指定端口是否打开
 - `write(name: String, data: PackedByteArray) -> bool` — 向指定端口写入原始字节
@@ -214,7 +214,7 @@ print("传感器值：", reading)
 
 异步多端口通信，使用模式 1（行缓冲）的 `GdSerialManager`：
 ```gdscript
-manager.open_buffered("COM3", 9600, 1000, 1)  # 模式 1：等待换行符
+manager.open("COM3", 9600, 1000, GdSerialManager.MODE_LINE_BUFFERED)  # 等待换行符
 ```
 
 ### AT 命令（调制解调器、WiFi 模块）
@@ -236,9 +236,9 @@ var response = serial.read(10)
 
 异步二进制协议，使用模式 0（RAW）或模式 2（自定义分隔符）：
 ```gdscript
-manager.open_buffered("COM3", 9600, 1000, 0)  # 模式 0：立即发送所有数据块
+manager.open("COM3", 9600, 1000)  # MODE_RAW（默认）：立即发送所有数据块
 # 或
-manager.open_buffered("COM3", 9600, 1000, 2)  # 模式 2：等待分隔符字节
+manager.open("COM3", 9600, 1000, GdSerialManager.MODE_CUSTOM_DELIMITER)  # 等待分隔符字节
 manager.set_delimiter("COM3", 0xFF)            # 设置自定义结束标记
 ```
 
